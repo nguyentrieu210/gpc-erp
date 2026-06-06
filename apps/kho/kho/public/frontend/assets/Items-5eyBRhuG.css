@@ -1,0 +1,1 @@
+.inp{width:100%;border-radius:8px;border:1px solid #d1d5db;padding:8px 12px;font-size:14px;background-color:#fff;transition:all .2s}.inp:focus{outline:none;border-color:#ea580c;box-shadow:0 0 0 1px #ea580c}@keyframes fadeIn{0%{opacity:0}to{opacity:1}}.animate-fade-in{animation:fadeIn .2s ease-out}

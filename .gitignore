@@ -9,8 +9,8 @@ node_modules/
 dist/
 *.timestamp-*.mjs
 
-# Generated frontend bundles from local builds
-**/public/frontend/assets/
+# Generated frontend bundles — KEEP for clone-and-run
+# **/public/frontend/assets/
 
 # Local/editor/environment files
 .env
