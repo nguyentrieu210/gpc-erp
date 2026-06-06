@@ -1,0 +1,100 @@
+# GPC Custom ERP — DEV environment
+# Tái dùng image frappe-vn:v16 (đã có frappe/erpnext/hrms/crm/insights/vi_translations + node/yarn/honcho)
+# => KHÔNG phải tải lại app nặng. Source 7 custom app bind-mount từ ..\apps (sửa trên Windows, chạy trong container).
+#
+# Up:   docker compose -f compose.dev.yaml up -d
+# Site: erp.local  (admin/admin)  — tạo bằng 01-create-site (chạy 1 lần)
+# Web:  http://localhost:8000   Socket.IO: 9000
+
+name: gpc-erp-dev
+
+services:
+  db:
+    image: mariadb:11.8
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MARIADB_ROOT_PASSWORD: "Letdoit1@"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - db-data:/var/lib/mysql
+
+  redis:
+    image: redis:8.6-alpine
+    volumes:
+      - redis-data:/data
+
+  frappe:
+    image: ghcr.io/nguyentrieu210/frappe-vn:v16
+    environment:
+      - DEEPSEEK_API_KEY=sk-4b4ebc8a83d04d8eb9325b80b0aea8ed
+    # Editable pip install nằm ở site-packages (layer container) -> MẤT khi recreate.
+    # => tự cài lại 7 custom app mỗi lần khởi động cho bền vững. ($$a = literal $a cho bash)
+    command:
+      - bash
+      - -c
+      - >-
+        . /home/frappe/.nvm/nvm.sh 2>/dev/null;
+        cd /home/frappe/frappe-bench;
+        for a in portal hr quantri muahang crm_ui tckt kho kinhdoanh duan; do
+          ./env/bin/pip install -e apps/$${a} -q 2>/dev/null;
+          target=$${a}/$${a}/public;
+          ln -sfn /home/frappe/frappe-bench/apps/$${a}/$${a}/public /home/frappe/frappe-bench/sites/assets/$${a} 2>/dev/null;
+        done;
+        echo INIT_DONE;
+        source /home/frappe/.nvm/nvm.sh 2>/dev/null;
+        nohup node /home/frappe/frappe-bench/apps/frappe/socketio.js --port 9000 > /tmp/socketio.log 2>&1 &
+        echo \"socket.io PID: \$!\";
+        nohup bench serve --port 8000 > /tmp/bench.log 2>&1 &
+        echo \"bench PID: \$!\";
+        exec sleep infinity
+    working_dir: /home/frappe/frappe-bench
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"   # web (bench serve)
+      - "9000:9000"   # socket.io
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - ../apps/portal:/home/frappe/frappe-bench/apps/portal
+      - ../apps/hr:/home/frappe/frappe-bench/apps/hr
+      - ../apps/crm_ui:/home/frappe/frappe-bench/apps/crm_ui
+      - ../apps/tckt:/home/frappe/frappe-bench/apps/tckt
+      - ../apps/kho:/home/frappe/frappe-bench/apps/kho
+      - ../apps/kinhdoanh:/home/frappe/frappe-bench/apps/kinhdoanh
+      - ../apps/quantri:/home/frappe/frappe-bench/apps/quantri
+      - ../apps/muahang:/home/frappe/frappe-bench/apps/muahang
+      - ../apps/duan:/home/frappe/frappe-bench/apps/duan
+      # node_modules trong named volume (tránh bind-mount Windows chậm). Mỗi app 1 volume.
+      - portal_nm:/home/frappe/frappe-bench/apps/portal/frontend/node_modules
+      - hr_nm:/home/frappe/frappe-bench/apps/hr/frontend/node_modules
+      - crm_ui_nm:/home/frappe/frappe-bench/apps/crm_ui/frontend/node_modules
+      - kho_nm:/home/frappe/frappe-bench/apps/kho/frontend/node_modules
+      - kinhdoanh_nm:/home/frappe/frappe-bench/apps/kinhdoanh/frontend/node_modules
+      - duan_nm:/home/frappe/frappe-bench/apps/duan/frontend/node_modules
+      - tckt_nm:/home/frappe/frappe-bench/apps/tckt/frontend/node_modules
+      - quantri_nm:/home/frappe/frappe-bench/apps/quantri/frontend/node_modules
+      - muahang_nm:/home/frappe/frappe-bench/apps/muahang/frontend/node_modules
+
+volumes:
+  db-data:
+  redis-data:
+  sites:
+  portal_nm:
+  hr_nm:
+  crm_ui_nm:
+  kho_nm:
+  kinhdoanh_nm:
+  duan_nm:
+  quantri_nm:
+  muahang_nm:
+  tckt_nm:

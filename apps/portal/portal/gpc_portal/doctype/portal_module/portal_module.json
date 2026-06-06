@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:route_key",
+ "creation": "2026-06-05 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "module_name",
+  "route_key",
+  "subdomain_url",
+  "section_break_ui",
+  "icon",
+  "color",
+  "sort_order",
+  "enabled",
+  "column_break_perm",
+  "required_role",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "module_name",
+   "fieldtype": "Data",
+   "label": "Ten phan he",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "route_key",
+   "fieldtype": "Data",
+   "label": "Ma (route key)",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "description": "vd: hr, crm, tckt"
+  },
+  {
+   "fieldname": "subdomain_url",
+   "fieldtype": "Data",
+   "label": "URL / Sub-domain",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Dev: /hr_app  |  Prod: https://hr.abc.vn"
+  },
+  {
+   "fieldname": "section_break_ui",
+   "fieldtype": "Section Break",
+   "label": "Hien thi"
+  },
+  {
+   "fieldname": "icon",
+   "fieldtype": "Data",
+   "label": "Icon (feather)",
+   "default": "grid"
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Data",
+   "label": "Mau",
+   "default": "#2563eb"
+  },
+  {
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Thu tu",
+   "default": "0"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Bat",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_perm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "required_role",
+   "fieldtype": "Link",
+   "label": "Role yeu cau",
+   "options": "Role",
+   "description": "De trong = moi user dang nhap deu thay"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Mo ta"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-05 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "GPC Portal",
+ "name": "Portal Module",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "share": 1,
+   "print": 1,
+   "email": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

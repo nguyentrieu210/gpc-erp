@@ -1,0 +1,29 @@
+# Python/runtime cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Frontend dependencies and local build cache
+node_modules/
+.vite/
+dist/
+
+# Generated frontend bundles from local builds
+**/public/frontend/assets/
+
+# Local/editor/environment files
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+
+# Temporary patch/debug scripts created during development
+fix_*.py
+patch_*.py
+patch*.py
+*_fix*.py
+_fix*.py
+
+# Accidental/generated folder
+apps;C/

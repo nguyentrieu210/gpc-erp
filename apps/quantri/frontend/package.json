@@ -1,0 +1,13 @@
+{
+  "name": "quantri-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --base=/assets/quantri/frontend/ && yarn copy-html-entry",
+    "copy-html-entry": "cp ../quantri/public/frontend/index.html ../quantri/www/quantri_app.html"
+  },
+  "dependencies": { "frappe-ui": "0.1.261", "pinia": "^2.0.33", "vue": "^3.5.13", "vue-router": "^4.2.2" },
+  "devDependencies": { "@vitejs/plugin-vue": "^5.2.4", "autoprefixer": "^10.4.14", "postcss": "^8.4.5", "tailwindcss": "^3.4.15", "vite": "^5.4.21" }
+}
