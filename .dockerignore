@@ -1,0 +1,36 @@
+# Git history — không cần trong image
+.git
+.gitignore
+.gitattributes
+
+# Editor/IDE
+.claude
+.vscode
+.idea
+*.code-workspace
+
+# Dev/docs
+dev/
+docs/
+deploy/
+TRACKLOG.md
+
+# Node modules (sẽ install lại trong container)
+**/node_modules/
+**/.vite/
+
+# Python cache
+**/__pycache__/
+**/*.py[cod]
+
+# Build artifacts đã có (sẽ build lại)
+**/public/frontend/assets/
+
+# Logs và temp
+*.log
+.env
+.env.*
+
+# Windows artifacts
+Thumbs.db
+.DS_Store
