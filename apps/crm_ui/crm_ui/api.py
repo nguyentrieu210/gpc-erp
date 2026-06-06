@@ -41,6 +41,25 @@ def get_crm_setup_status():
     return {"company": _company(), "ready": True, "customer_group_count": frappe.db.count("Customer Group", {"is_group": 0})}
 
 
+@frappe.whitelist()
+def setup_crm_integration():
+    """Tạo custom field custom_crm_opportunity trên Customer doctype — idempotent."""
+    if not frappe.db.exists("Custom Field", {"dt": "Customer", "fieldname": "custom_crm_opportunity"}):
+        frappe.get_doc({
+            "doctype": "Custom Field",
+            "dt": "Customer",
+            "fieldname": "custom_crm_opportunity",
+            "label": "CRM Opportunity",
+            "fieldtype": "Link",
+            "options": "Opportunity",
+            "insert_after": "customer_group",
+            "read_only": 1,
+            "in_list_view": 0,
+        }).insert(ignore_permissions=True)
+        frappe.db.commit()
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------------------
 # LEADS (ERPNext Lead)
 # ---------------------------------------------------------------------------
@@ -158,8 +177,11 @@ def convert_opportunity_to_customer(name):
                            "customer_group": "Commercial", "customer_type": "Company", "territory": "All Territories"})
     cust.insert(ignore_permissions=True)
     frappe.db.set_value("Opportunity", name, "status", "Closed Won")
+    # Link ngược: ghi opportunity vào Customer nếu custom field tồn tại
+    if frappe.db.exists("Custom Field", {"dt": "Customer", "fieldname": "custom_crm_opportunity"}):
+        frappe.db.set_value("Customer", cust.name, "custom_crm_opportunity", name)
     _log("Opportunity", name, "to_customer", cust.name)
-    return cust.as_dict()
+    return {"customer": cust.name, "customer_name": opp.title, "opportunity": name}
 
 
 @frappe.whitelist()
@@ -198,6 +220,30 @@ def get_customer(name):
     d = frappe.get_doc("Customer", name).as_dict()
     d["opportunities"] = frappe.get_all("Opportunity", filters={"party_name": name}, fields=["name", "title", "status", "opportunity_amount"], limit=20)
     return d
+
+
+@frappe.whitelist()
+def get_customer_crm_context(customer_name):
+    """Lấy Opportunity + Lead gốc của customer này — để module Kinh doanh hiển thị lịch sử CRM."""
+    opp_name = frappe.db.get_value("Customer", customer_name, "custom_crm_opportunity")
+    if not opp_name:
+        # fallback: tìm theo title
+        opp_name = frappe.db.get_value("Opportunity", {"party_name": customer_name, "status": "Closed Won"}, "name")
+    if not opp_name:
+        return {"opportunity": None, "lead": None}
+    opp = frappe.get_doc("Opportunity", opp_name)
+    lead = None
+    if opp.get("lead"):
+        lead = frappe.db.get_value("Lead", opp.lead, ["name", "lead_name", "email_id", "mobile_no", "source", "creation"], as_dict=True)
+    return {
+        "opportunity": {
+            "name": opp.name, "title": opp.title,
+            "opportunity_amount": flt(opp.opportunity_amount),
+            "expected_closing": str(opp.expected_closing) if opp.expected_closing else None,
+            "status": opp.status, "creation": str(opp.creation),
+        },
+        "lead": lead,
+    }
 
 
 @frappe.whitelist()

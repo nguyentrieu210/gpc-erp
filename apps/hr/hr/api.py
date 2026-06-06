@@ -2420,7 +2420,7 @@ def _ensure_salary_components():
 
 
 def _ensure_structure(company):
-	"""Đảm bảo Salary Structure mặc định tồn tại + active (earning Basic = base)."""
+	"""Đảm bảo Salary Structure mặc định tồn tại + active (earning Basic = base + deductions)."""
 	if frappe.db.exists("Salary Structure", _SALARY_STRUCTURE):
 		return _SALARY_STRUCTURE
 	doc = frappe.new_doc("Salary Structure")
@@ -2429,6 +2429,9 @@ def _ensure_structure(company):
 	doc.is_active = "Yes"
 	doc.payroll_frequency = "Monthly"
 	doc.append("earnings", {"salary_component": "Basic", "amount_based_on_formula": 1, "formula": "base"})
+	# Thêm deductions vào structure để ERPNext nhận diện khi submit → post GL đúng
+	for label, _abbr, _rate in _DEDUCTION_COMPONENTS:
+		doc.append("deductions", {"salary_component": label, "amount_based_on_formula": 0, "amount": 0})
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 	return _SALARY_STRUCTURE
@@ -2587,33 +2590,46 @@ def run_payroll(month=None, year=None, working_days=None):
 			slip.end_date = end
 			slip.posting_date = end
 			slip.default_series = f"Sal Slip/{slip.employee}/.#####"
-			slip.insert(ignore_permissions=True)
-			frappe.db.set_value("Salary Slip", slip.name, "payment_days", calc["_actual_days"])
-			frappe.db.set_value("Salary Slip", slip.name, "total_working_days", total_wd)
+			# Xóa earnings/deductions do make_salary_slip tạo sẵn từ Salary Structure
+			# để tránh duplicate rows — ta sẽ append đúng giá trị đã tính bên dưới
+			slip.earnings = []
+			slip.deductions = []
+			# Build earnings trên object TRƯỚC khi insert — để ERPNext tính gross_pay/net_pay đúng
 			for a in calc["earnings"]:
 				if (a["so_tien"] or 0) > 0:
 					_ensure_earning_component(a["ten"])
-					frappe.get_doc({"doctype": "Salary Detail", "parent": slip.name, "parenttype": "Salary Slip",
-						"salary_component": a["ten"], "amount": a["so_tien"], "amount_based_on_formula": 0}).insert(ignore_permissions=True)
+					slip.append("earnings", {
+						"salary_component": a["ten"],
+						"amount": a["so_tien"],
+						"amount_based_on_formula": 0,
+					})
 			for comp, amt in (("BHXH (8%)", calc["bhxh"]), ("BHYT (1.5%)", calc["bhyt"]),
 					("BHTN (1%)", calc["bhtn"]), ("Thuế TNCN", calc["pit"])):
 				if amt > 0:
-					frappe.get_doc({"doctype": "Salary Detail", "parent": slip.name, "parenttype": "Salary Slip",
-						"salary_component": comp, "amount": amt, "amount_based_on_formula": 0}).insert(ignore_permissions=True)
-			frappe.db.set_value("Salary Slip", slip.name, "gross_pay", calc["gross"])
-			frappe.db.set_value("Salary Slip", slip.name, "total_deduction", calc["bh_nld"] + calc["pit"])
-			frappe.db.set_value("Salary Slip", slip.name, "net_pay", calc["net"])
+					slip.append("deductions", {
+						"salary_component": comp,
+						"amount": amt,
+						"amount_based_on_formula": 0,
+					})
+			# Set payment_days + total_working_days TRƯỚC insert để validate() đọc đúng
+			slip.payment_days = calc["_actual_days"]
+			slip.total_working_days = total_wd
+			slip.insert(ignore_permissions=True)
+			# KHÔNG dùng set_value cho gross_pay/total_deduction/net_pay
+			# ERPNext tự tính qua validate() khi insert → GL Entry đúng khi submit
 			frappe.db.commit()
+			# Lấy lại doc sau insert để đọc giá trị gross_pay/net_pay thực tế
+			saved_slip = frappe.get_doc("Salary Slip", slip.name)
 
 			created.append({
 				"employee": e["name"], "name": label, "slip": slip.name,
-				"gross": slip.gross_pay, "deduction": slip.total_deduction, "net": slip.net_pay,
+				"gross": saved_slip.gross_pay, "deduction": saved_slip.total_deduction, "net": saved_slip.net_pay,
 				"days": calc["_actual_days"], "total_days": total_wd,
 			})
-			totals["gross"] += slip.gross_pay or 0
+			totals["gross"] += saved_slip.gross_pay or 0
 			totals["ins"] += calc["bh_nld"]
 			totals["tax"] += calc["pit"]
-			totals["net"] += slip.net_pay or 0
+			totals["net"] += saved_slip.net_pay or 0
 			totals["count"] += 1
 		except Exception as ex:
 			errors.append({"employee": e["name"], "name": label, "error": str(ex)[:200]})

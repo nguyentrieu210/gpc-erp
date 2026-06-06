@@ -117,8 +117,13 @@ def get_customers(search="", customer_group=None, page=1, page_length=30):
 
 @frappe.whitelist()
 def get_customer(name):
-    d = frappe.get_doc("Customer", name).as_dict()
-    d["outstanding"] = _customer_outstanding_map().get(name, 0)
+    doc = frappe.get_doc("Customer", name)
+    doc.reload()
+    crm_opp = frappe.db.get_value("Customer", name, "custom_crm_opportunity") if frappe.db.exists("Custom Field", {"dt": "Customer", "fieldname": "custom_crm_opportunity"}) else None
+    d = doc.as_dict()
+    d["crm_opportunity"] = crm_opp
+    d["crm_url"] = f"/crm_app/opportunities/{crm_opp}" if crm_opp else None
+    d["outstanding"] = flt(_customer_outstanding_map().get(name, 0))
     d["recent_orders"] = frappe.get_all("Sales Order", filters={"customer": name}, fields=["name", "transaction_date", "grand_total", "status"], order_by="transaction_date desc", limit=10)
     d["ledger"] = frappe.get_all("GL Entry", filters={"party_type": "Customer", "party": name, "is_cancelled": 0}, fields=["posting_date", "voucher_type", "voucher_no", "debit", "credit"], order_by="posting_date asc", limit=200)
     return d
@@ -272,20 +277,110 @@ def get_delivery_notes(search="", customer=None, page=1, page_length=30):
 
 
 @frappe.whitelist()
-def create_delivery_note(customer, items, posting_date=None, set_warehouse=None, apply_tax=1, submit=0):
+def create_delivery_note(customer, items=None, posting_date=None, set_warehouse=None, apply_tax=1, submit=0, sales_order=None):
     if isinstance(items, str): items = _json.loads(items)
-    doc = frappe.new_doc("Delivery Note"); doc.customer = customer; doc.company = _company()
-    if posting_date: doc.set_posting_time = 1; doc.posting_date = getdate(posting_date)
-    if set_warehouse: doc.set_warehouse = set_warehouse
-    for it in items: doc.append("items", {"item_code": it.get("item_code"), "qty": flt(it.get("qty")), "rate": flt(it.get("rate")), "warehouse": it.get("warehouse") or set_warehouse})
-    if cint(apply_tax): _apply_sales_tax(doc)
+
+    if sales_order:
+        # Dùng ERPNext mapper để giữ reference + update per_delivered trên SO
+        from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note
+        doc = make_delivery_note(sales_order)
+        # Override items nếu partial (chỉ giao 1 phần)
+        if items:
+            doc.items = []
+            for it in items:
+                doc.append("items", {
+                    "item_code": it.get("item_code"),
+                    "qty": flt(it.get("qty")),
+                    "rate": flt(it.get("rate")),
+                    "warehouse": it.get("warehouse") or set_warehouse,
+                    "against_sales_order": sales_order,
+                })
+        if set_warehouse:
+            doc.set_warehouse = set_warehouse
+        if posting_date:
+            doc.set_posting_time = 1
+            doc.posting_date = getdate(posting_date)
+    else:
+        # Logic cũ: tạo DN độc lập
+        doc = frappe.new_doc("Delivery Note")
+        doc.customer = customer; doc.company = _company()
+        if posting_date: doc.set_posting_time = 1; doc.posting_date = getdate(posting_date)
+        if set_warehouse: doc.set_warehouse = set_warehouse
+        for it in (items or []): doc.append("items", {"item_code": it.get("item_code"), "qty": flt(it.get("qty")), "rate": flt(it.get("rate")), "warehouse": it.get("warehouse") or set_warehouse})
+
+    if cint(apply_tax):
+        _apply_sales_tax(doc)
     doc.insert(ignore_permissions=True)
     if cint(submit): doc.submit()
-    _log("Delivery Note", doc.name, "create", customer); return doc.as_dict()
+    _log("Delivery Note", doc.name, "create", customer)
+    return doc.as_dict()
 
 
 @frappe.whitelist()
 def submit_delivery_note(name): doc = frappe.get_doc("Delivery Note", name); doc.submit(); return {"name": doc.name, "docstatus": doc.docstatus}
+
+
+@frappe.whitelist()
+def make_sales_return(delivery_note_name, submit=0):
+    """Trả hàng bán → Return Delivery Note (đảo ngược tồn kho)."""
+    from erpnext.controllers.sales_and_purchase_return import make_return_doc
+    ret = make_return_doc("Delivery Note", delivery_note_name)
+    ret.insert(ignore_permissions=True)
+    if cint(submit):
+        ret.submit()
+    _log("Delivery Note", ret.name, "sales_return", delivery_note_name)
+    return ret.as_dict()
+
+
+@frappe.whitelist()
+def make_credit_note(invoice_name, submit=0):
+    """Credit Note (hóa đơn điều chỉnh giảm) → GL ngược: Dr 511 / Cr 131."""
+    from erpnext.controllers.sales_and_purchase_return import make_return_doc
+    cn = make_return_doc("Sales Invoice", invoice_name)
+    cn.insert(ignore_permissions=True)
+    if cint(submit):
+        cn.submit()
+    _log("Sales Invoice", cn.name, "credit_note", invoice_name)
+    return cn.as_dict()
+
+
+@frappe.whitelist()
+def get_so_status(name):
+    """Trạng thái thực tế của Sales Order: giao hàng / xuất hóa đơn."""
+    so = frappe.get_doc("Sales Order", name)
+    dns = frappe.get_all(
+        "Delivery Note Item", filters={"against_sales_order": name},
+        fields=["parent"], distinct=True,
+    )
+    dn_names = [d.parent for d in dns]
+    delivery_notes = []
+    for dn_name in dn_names:
+        dn = frappe.db.get_value("Delivery Note", dn_name,
+            ["name", "posting_date", "grand_total", "docstatus"], as_dict=True)
+        if dn:
+            delivery_notes.append(dn)
+
+    si_refs = frappe.get_all(
+        "Sales Invoice Item", filters={"sales_order": name},
+        fields=["parent"], distinct=True,
+    )
+    si_names = [s.parent for s in si_refs]
+    invoices = []
+    for si_name in si_names:
+        si = frappe.db.get_value("Sales Invoice", si_name,
+            ["name", "posting_date", "grand_total", "outstanding_amount", "docstatus"], as_dict=True)
+        if si:
+            invoices.append(si)
+
+    return {
+        "name": so.name,
+        "status": so.status,
+        "per_delivered": flt(so.per_delivered),
+        "per_billed": flt(so.per_billed),
+        "grand_total": flt(so.grand_total),
+        "delivery_notes": delivery_notes,
+        "invoices": invoices,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +535,13 @@ def get_linked_docs(doctype, name):
             filters={"docstatus": ["!=", 2]}, or_filters=[["items", "like", f"%{name}%"]],
             fields=["name", "customer_name", "grand_total", "outstanding_amount", "posting_date", "docstatus"], limit=10)
     return links
+
+
+# Auto-fill price from Price List when creating SO/Quotation
+@frappe.whitelist()
+def get_selling_price(item_code, price_list="Standard Selling"):
+    rate = frappe.db.get_value("Item Price", {"item_code": item_code, "price_list": price_list}, "price_list_rate")
+    return {"item_code": item_code, "rate": flt(rate) if rate else 0}
 
 
 @frappe.whitelist()
