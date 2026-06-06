@@ -277,6 +277,11 @@ def get_delivery_notes(search="", customer=None, page=1, page_length=30):
 
 
 @frappe.whitelist()
+def get_delivery_note(name):
+    return frappe.get_doc("Delivery Note", name).as_dict()
+
+
+@frappe.whitelist()
 def create_delivery_note(customer, items=None, posting_date=None, set_warehouse=None, apply_tax=1, submit=0, sales_order=None):
     if isinstance(items, str): items = _json.loads(items)
 

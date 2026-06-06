@@ -685,7 +685,7 @@
           <div><label class="text-xs text-slate-700">Tên</label><input v-model="convertForm.last_name" class="w-full border rounded px-3 py-2 text-sm" placeholder="Tên..." /></div>
         </div>
         <div class="grid grid-cols-3 gap-3">
-          <div><label class="text-xs text-slate-700">Giới tính</label><select v-model="convertForm.gender" class="w-full border rounded px-3 py-2 text-sm"><option value="">—</option><option>Nam</option><option>Nữ</option><option>Khác</option></select></div>
+          <div><label class="text-xs text-slate-700">Giới tính</label><select v-model="convertForm.gender" class="w-full border rounded px-3 py-2 text-sm"><option value="">—</option><option value="Male">Nam</option><option value="Female">Nữ</option><option value="Other">Khác</option></select></div>
           <div><label class="text-xs text-slate-700">Ngày sinh</label><input v-model="convertForm.dob" type="date" class="w-full border rounded px-3 py-2 text-sm" /></div>
           <div><label class="text-xs text-slate-700">Ngày vào làm</label><input v-model="convertForm.joining" type="date" class="w-full border rounded px-3 py-2 text-sm" /></div>
         </div>
@@ -1314,17 +1314,54 @@ async function confirmDelete() {
 async function openConvert() {
   const a = app.value
   const cv_data = app.value?.cv_data || {}
+  
+  // Reset form with defaults
+  convertForm.value = {
+    first_name: '', last_name: '', gender: 'Male', dob: '', joining: new Date().toISOString().split('T')[0],
+    email: a.email_id || cv_data.email || '', phone: a.phone_number || cv_data.phone || '',
+    location: cv_data.location || '', designation: a.designation || '', department: a.department || '',
+    company: 'GPC', salary: a.custom_offered_salary || 0,
+  }
+
   // Parse name into first/last
   const nameParts = (a.applicant_name || '').trim().split(/\s+/)
   convertForm.value.first_name = nameParts.slice(0, -1).join(' ') || nameParts[0] || ''
   convertForm.value.last_name = nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''
-  convertForm.value.email = a.email_id || cv_data.email || ''
-  convertForm.value.phone = a.phone_number || cv_data.phone || ''
-  convertForm.value.location = cv_data.location || ''
-  convertForm.value.dob = cv_data.dob ? cv_data.dob.replace(/\//g, '-') : ''
-  convertForm.value.designation = a.designation || ''
-  convertForm.value.department = a.department || ''
-  convertForm.value.salary = a.custom_offered_salary || 0
+
+  // Auto-fill gender
+  if (cv_data.gender) {
+    const g = String(cv_data.gender).trim().toLowerCase()
+    if (g === 'nữ' || g === 'female' || g === 'nu' || g === 'f') {
+      convertForm.value.gender = 'Female'
+    } else if (g === 'nam' || g === 'male' || g === 'm') {
+      convertForm.value.gender = 'Male'
+    } else {
+      convertForm.value.gender = 'Other'
+    }
+  }
+
+  // Auto-fill dob
+  if (cv_data.dob) {
+    const dobStr = String(cv_data.dob).trim()
+    const dmy = dobStr.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/)
+    if (dmy) {
+      const day = dmy[1].padStart(2, '0')
+      const month = dmy[2].padStart(2, '0')
+      const year = dmy[3]
+      convertForm.value.dob = `${year}-${month}-${day}`
+    } else {
+      const ymd = dobStr.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/)
+      if (ymd) {
+        const year = ymd[1]
+        const month = ymd[2].padStart(2, '0')
+        const day = ymd[3].padStart(2, '0')
+        convertForm.value.dob = `${year}-${month}-${day}`
+      } else {
+        convertForm.value.dob = dobStr.replace(/\//g, '-')
+      }
+    }
+  }
+
   // Fetch designations & departments if not loaded
   if (!designations.value.length) {
     try {

@@ -1,7 +1,9 @@
 <!-- GPC SHARED — StatCard. Thẻ KPI dashboard: icon + nhãn + số + phụ đề, click điều hướng tùy chọn. -->
 <template>
-  <component :is="to ? 'button' : 'div'" @click="to && $router.push(to)"
-    class="group app-card text-left p-4 flex items-center gap-3 w-full" :class="to ? 'cursor-pointer' : ''">
+  <div :role="to ? 'button' : undefined" :tabindex="to ? 0 : undefined" @click="to && $router.push(to)"
+    @keydown.enter="to && $router.push(to)" @keydown.space.prevent="to && $router.push(to)"
+    class="group app-card text-left p-4 flex items-center gap-3 w-full outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+    :class="to ? 'cursor-pointer select-none' : ''">
     <div class="h-11 w-11 rounded-xl flex items-center justify-center shrink-0" :class="toneBg">
       <FeatherIcon v-if="icon" :name="icon" class="h-5 w-5" :class="toneText" />
     </div>
@@ -10,7 +12,7 @@
       <div class="text-xl font-bold truncate">{{ value }}</div>
       <div v-if="sub" class="text-xs truncate" :class="subTone">{{ sub }}</div>
     </div>
-  </component>
+  </div>
 </template>
 <script setup>
 import { computed } from 'vue'

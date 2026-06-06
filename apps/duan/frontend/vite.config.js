@@ -13,6 +13,6 @@ export default defineConfig({
     }),
     vue(),
   ],
-  resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
+  resolve: { alias: { '@': path.resolve(__dirname, 'src'), '@shared': path.resolve(__dirname, 'src/_shared') } },
   server: { fs: { allow: [path.resolve(__dirname, '..')] } },
 })

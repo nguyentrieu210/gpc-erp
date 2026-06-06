@@ -1,30 +1,54 @@
 <template>
-<div class="flex flex-col min-h-screen bg-gray-50"><header class="flex items-center gap-2 border-b bg-white px-4 py-3 sticky top-0"><button class="text-gray-500" @click="$router.push('/')"><FeatherIcon name="arrow-left" class="h-5 w-5"/></button><FeatherIcon name="user-plus" class="h-5 w-5 text-indigo-600"/><h1 class="text-lg font-bold flex-1">Lead</h1><Button variant="solid" @click="openCreate">+ Thêm</Button></header>
-<main class="flex-1 p-4 max-w-5xl mx-auto"><div class="flex gap-2 mb-3 overflow-x-auto">
-<button v-for="s in statuses" :key="s.value" class="px-3 py-1.5 rounded-full text-sm border whitespace-nowrap" :class="st===s.value?'bg-indigo-600 text-white border-indigo-600':'bg-white'" @click="st=s.value;reload()">{{ s.label }}</button></div>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"><div v-if="loading" class="col-span-full py-10 text-center"><LoadingIndicator/></div>
-<div v-else-if="!rows.length" class="col-span-full py-10 text-center text-gray-400">Chưa có lead</div>
-<div v-for="l in rows" :key="l.name" class="rounded-xl border bg-white p-4 shadow-sm">
-<div class="flex justify-between"><div class="font-semibold">{{ l.lead_name }}</div><span class="text-xs px-2 py-0.5 rounded-full" :class="badge(l.status)">{{ l.status_vi }}</span></div>
-<div class="text-xs text-gray-500 mt-1">{{ l.company_name||'' }} · {{ l.email_id||'' }} · {{ l.mobile_no||'' }}</div>
-<div class="flex gap-2 mt-3"><select v-model="l._ns" @change="move(l)" class="inp !py-1 text-xs"><option v-for="s in statuses" :key="s.value" :value="s.value">{{ s.label }}</option></select>
-<Button variant="solid" size="sm" @click="convert(l)">→ Opp</Button></div></div></div>
-</main>
-<div v-if="show" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" @click.self="show=false"><div class="bg-white rounded-xl w-full max-w-sm p-5"><h3 class="font-semibold mb-4">Thêm Lead</h3>
-<label class="block mb-2"><span class="text-sm">Tên *</span><input v-model="f.lead_name" class="inp"/></label>
-<label class="block mb-2"><span class="text-sm">Email</span><input v-model="f.email" class="inp"/></label>
-<label class="block mb-2"><span class="text-sm">SĐT</span><input v-model="f.mobile" class="inp"/></label>
-<label class="block mb-2"><span class="text-sm">Công ty</span><input v-model="f.company_name" class="inp"/></label>
-<div class="flex justify-end gap-2 mt-5"><Button variant="subtle" @click="show=false">Hủy</Button><Button variant="solid" :loading="saving" @click="save">Lưu</Button></div></div></div></div></template>
+  <div class="flex flex-col min-h-screen bg-gray-50">
+    <PageHeader title="Lead (Tiềm năng)" icon="user-plus" icon-class="text-indigo-600">
+      <button class="btn-secondary px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1" @click="view = view === 'kanban' ? 'list' : 'kanban'">
+        <FeatherIcon :name="view === 'kanban' ? 'list' : 'columns'" class="h-4 w-4" /> {{ view === 'kanban' ? 'Danh sách' : 'Kanban' }}
+      </button>
+      <button class="btn-primary px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1" @click="openCreate"><FeatherIcon name="plus" class="h-4 w-4" /> Thêm lead</button>
+    </PageHeader>
+    <main class="flex-1 p-4 max-w-full mx-auto w-full">
+      <div v-if="loading" class="py-10 text-center"><LoadingIndicator /></div>
+      <Kanban v-else-if="view === 'kanban'" :columns="cols" :items="leads" group-key="status" @move="onMove" @card-click="goDetail">
+        <template #card="{ item }">
+          <div class="font-medium text-sm truncate">{{ item.lead_name }}</div>
+          <div class="text-xs text-gray-500 truncate">{{ item.company_name || '' }}</div>
+          <div class="text-xs text-gray-400 mt-1 truncate">{{ item.email_id || item.mobile_no || '' }}</div>
+        </template>
+      </Kanban>
+      <DataTable v-else :rows="leads" :columns="columns" search-placeholder="Tìm lead…" :search-keys="['lead_name', 'email_id', 'mobile_no', 'company_name']" @row-click="goDetail">
+        <template #col-status="{ row }"><StatusBadge :status="row.status_vi" /></template>
+      </DataTable>
+    </main>
+    <FormModal :show="show" title="Thêm lead" icon="user-plus" width="max-w-md" :saving="saving" @close="show = false" @save="save">
+      <div class="space-y-3">
+        <div><label class="text-xs text-gray-500">Tên *</label><input v-model="f.lead_name" class="inp" /></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="text-xs text-gray-500">Email</label><input v-model="f.email" class="inp" /></div><div><label class="text-xs text-gray-500">SĐT</label><input v-model="f.mobile" class="inp" /></div></div>
+        <div><label class="text-xs text-gray-500">Công ty</label><input v-model="f.company_name" class="inp" /></div>
+      </div>
+    </FormModal>
+    <div v-if="toast" class="fixed top-16 right-4 z-[60] px-4 py-2 rounded-lg shadow-lg text-sm font-medium" :class="toast.startsWith('✅') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'">{{ toast }}</div>
+  </div>
+</template>
 <script setup>
-import {ref} from 'vue'; import {Button,FeatherIcon,LoadingIndicator} from 'frappe-ui'; import {callApi} from '../composables/useFrappeApi'
-const rows=ref([]),loading=ref(false),st=ref('')
-const statuses=[{value:'',label:'Tất cả'},{value:'Lead',label:'Mới'},{value:'Open',label:'Mở'},{value:'Replied',label:'Đã LH'},{value:'Opportunity',label:'Cơ hội'},{value:'Quotation',label:'Báo giá'},{value:'Converted',label:'Đã chuyển'}]
-async function reload(){loading.value=true;try{const r=await callApi('crm_ui.api.get_leads',{status:st.value},'GET');rows.value=(r?.entries||[]).map(l=>({...l,_ns:l.status}))}finally{loading.value=false}};reload()
-async function move(l){await callApi('crm_ui.api.move_lead_status',{name:l.name,status:l._ns});reload()}
-async function convert(l){try{await callApi('crm_ui.api.convert_lead_to_opportunity',{name:l.name});reload()}catch(e){alert('Lỗi: '+(e?.message||e))}}
-const show=ref(false),saving=ref(false);const f=ref({lead_name:'',email:'',mobile:'',company_name:''})
-function openCreate(){f.value={lead_name:'',email:'',mobile:'',company_name:''};show.value=true}
-async function save(){if(!f.value.lead_name)return;saving.value=true;try{await callApi('crm_ui.api.create_lead',{...f.value});show.value=false;reload()}catch(e){alert('Lỗi: '+(e?.message||e))}finally{saving.value=false}}
-function badge(s){return{Lead:'bg-blue-100 text-blue-700',Open:'bg-indigo-100 text-indigo-700',Replied:'bg-amber-100 text-amber-700',Opportunity:'bg-violet-100 text-violet-700',Quotation:'bg-teal-100 text-teal-700',Converted:'bg-emerald-100 text-emerald-700'}[s]||'bg-gray-100'}
+import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import { FeatherIcon, LoadingIndicator } from 'frappe-ui'
+import { PageHeader, Kanban, DataTable, FormModal, StatusBadge, useToast, callApi } from '@shared'
+const router = useRouter(); const { toast, ok, err } = useToast()
+const view = ref('kanban'); const leads = ref([]); const loading = ref(false)
+const cols = [
+  { key: 'Lead', label: 'Mới', color: 'blue' }, { key: 'Open', label: 'Mở', color: 'indigo' },
+  { key: 'Replied', label: 'Đã liên hệ', color: 'amber' }, { key: 'Opportunity', label: 'Cơ hội', color: 'purple' },
+  { key: 'Quotation', label: 'Báo giá', color: 'orange' }, { key: 'Interested', label: 'Quan tâm', color: 'green' },
+  { key: 'Converted', label: 'Đã chuyển', color: 'green' },
+]
+const columns = [{ key: 'lead_name', label: 'Tên' }, { key: 'company_name', label: 'Công ty' }, { key: 'email_id', label: 'Email' }, { key: 'mobile_no', label: 'SĐT' }, { key: 'status', label: 'Trạng thái' }]
+async function reload() { loading.value = true; try { leads.value = (await callApi('crm_ui.api.get_leads', { page_length: 500 }, 'GET'))?.entries || [] } finally { loading.value = false } }
+reload()
+async function onMove({ item, to }) { try { await callApi('crm_ui.api.move_lead_status', { name: item.name, status: to }); item.status = to; ok('Đã chuyển trạng thái') } catch (e) { err(e?.message); reload() } }
+function goDetail(row) { router.push('/leads/' + row.name) }
+const show = ref(false); const saving = ref(false)
+const f = reactive({ lead_name: '', email: '', mobile: '', company_name: '' })
+function openCreate() { Object.assign(f, { lead_name: '', email: '', mobile: '', company_name: '' }); show.value = true }
+async function save() { if (!f.lead_name) return err('Nhập tên lead'); saving.value = true; try { await callApi('crm_ui.api.create_lead', { ...f }); ok('Đã thêm lead'); show.value = false; reload() } catch (e) { err(e?.message) } finally { saving.value = false } }
 </script>

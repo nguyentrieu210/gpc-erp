@@ -906,6 +906,115 @@ def get_linked_docs(doctype, name):
     return links
 
 
+# ---------------------------------------------------------------------------
+# 10. ACTIVITY + PR DETAIL + PRINT PI + RETURN (Debit Note)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_doc_activity(doctype, name):
+    rows = frappe.get_all("Comment",
+        filters={"reference_doctype": doctype, "reference_name": name,
+                 "comment_type": ["in", ["Comment", "Info", "Created", "Submitted", "Cancelled", "Updated"]]},
+        fields=["content", "comment_by", "owner", "creation", "comment_type"], order_by="creation desc", limit=60)
+    return [{"time": str(c.creation), "user": c.comment_by or c.owner, "action": c.comment_type,
+             "detail": frappe.utils.strip_html(c.content or "")} for c in rows]
+
+
+@frappe.whitelist()
+def get_purchase_request(name):
+    return frappe.get_doc("Material Request", name).as_dict()
+
+
+@frappe.whitelist()
+def print_purchase_invoice(name):
+    return _print_doc_vn("Purchase Invoice", name, "HÓA ĐƠN MUA HÀNG", "posting_date")
+
+
+@frappe.whitelist()
+def make_purchase_return(doctype, name, submit=0):
+    """Trả hàng mua: Purchase Receipt → phiếu trả (đảo kho); Purchase Invoice → Debit Note (Cr 331)."""
+    from erpnext.controllers.sales_and_purchase_return import make_return_doc
+    ret = make_return_doc(doctype, name)
+    ret.insert(ignore_permissions=True)
+    if cint(submit):
+        ret.submit()
+    _log(doctype, ret.name, "purchase_return", name)
+    return ret.as_dict()
+
+
+# ---------------------------------------------------------------------------
+# 11. RFQ — Yêu cầu báo giá → Báo giá NCC → PO
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_rfqs(search="", page=1, page_length=30):
+    page, page_length = cint(page) or 1, cint(page_length) or 30
+    filters = {"docstatus": ["!=", 2]}
+    or_filters = [["name", "like", f"%{search}%"]] if search else None
+    total = frappe.db.count("Request for Quotation", filters)
+    rows = frappe.get_all("Request for Quotation", filters=filters, or_filters=or_filters,
+                          fields=["name", "transaction_date", "status", "docstatus", "creation"],
+                          order_by="creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    for r in rows:
+        r["supplier_count"] = frappe.db.count("Request for Quotation Supplier", {"parent": r.name})
+    return {"entries": rows, "total": total, "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def get_rfq(name):
+    return frappe.get_doc("Request for Quotation", name).as_dict()
+
+
+@frappe.whitelist()
+def create_rfq(items, suppliers, schedule_date=None, submit=0):
+    """items: [{item_code, qty}]; suppliers: [supplier_name,...]"""
+    if isinstance(items, str):
+        items = _json.loads(items)
+    if isinstance(suppliers, str):
+        suppliers = _json.loads(suppliers)
+    company = _company()
+    wh = frappe.db.get_single_value("Stock Settings", "default_warehouse") \
+        or frappe.db.get_value("Warehouse", {"company": company, "is_group": 0}, "name")
+    sd = getdate(schedule_date) if schedule_date else getdate(today())
+    doc = frappe.new_doc("Request for Quotation")
+    doc.company = company
+    doc.transaction_date = getdate(today())
+    for it in items:
+        doc.append("items", {"item_code": it.get("item_code"), "qty": flt(it.get("qty")) or 1,
+                             "warehouse": it.get("warehouse") or wh, "schedule_date": sd})
+    for s in suppliers:
+        doc.append("suppliers", {"supplier": s})
+    doc.message_for_supplier = "Kính gửi Quý nhà cung cấp, vui lòng báo giá các mặt hàng sau."
+    doc.insert(ignore_permissions=True)
+    if cint(submit):
+        doc.submit()
+    _log("Request for Quotation", doc.name, "create_rfq", f"{len(suppliers)} NCC")
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def get_supplier_quotations(search="", page=1, page_length=30):
+    page, page_length = cint(page) or 1, cint(page_length) or 30
+    filters = {"docstatus": ["!=", 2]}
+    or_filters = [["name", "like", f"%{search}%"], ["supplier_name", "like", f"%{search}%"]] if search else None
+    total = frappe.db.count("Supplier Quotation", filters)
+    rows = frappe.get_all("Supplier Quotation", filters=filters, or_filters=or_filters,
+                          fields=["name", "supplier", "supplier_name", "grand_total", "transaction_date", "status", "docstatus"],
+                          order_by="creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    return {"entries": rows, "total": total, "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def make_po_from_supplier_quotation(name, submit=0):
+    from erpnext.buying.doctype.supplier_quotation.supplier_quotation import make_purchase_order
+    po = make_purchase_order(name)
+    po.insert(ignore_permissions=True)
+    if cint(submit):
+        po.submit()
+    _log("Purchase Order", po.name, "from_supplier_quotation", name)
+    return po.as_dict()
+
+
 @frappe.whitelist()
 def get_csrf_token():
     import frappe.sessions

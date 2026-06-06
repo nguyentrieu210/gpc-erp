@@ -16,9 +16,10 @@ COPY --chown=frappe:frappe apps/kinhdoanh  apps/kinhdoanh
 COPY --chown=frappe:frappe apps/quantri    apps/quantri
 COPY --chown=frappe:frappe apps/muahang    apps/muahang
 COPY --chown=frappe:frappe apps/duan       apps/duan
+COPY --chown=frappe:frappe apps/taisan     apps/taisan
 
 # ── pip install editable + symlink assets ────────────────────────────────────
-RUN for a in portal hr crm_ui tckt kho kinhdoanh quantri muahang duan; do \
+RUN for a in portal hr crm_ui tckt kho kinhdoanh quantri muahang duan taisan; do \
       echo "=== installing $a ==="; \
       ./env/bin/pip install -e "apps/$a" -q; \
       mkdir -p sites/assets; \
@@ -33,7 +34,7 @@ RUN bash shared/sync.sh
 # ── Build Vue frontend cho từng app có frontend/ ────────────────────────────
 # node/yarn đã có trong image frappe-vn:v16 qua nvm
 RUN . /home/frappe/.nvm/nvm.sh && \
-    for a in portal hr crm_ui tckt kho kinhdoanh quantri muahang duan; do \
+    for a in portal hr crm_ui tckt kho kinhdoanh quantri muahang duan taisan; do \
       if [ -f "apps/$a/frontend/package.json" ]; then \
         echo "=== building frontend $a ==="; \
         cd apps/$a/frontend && \

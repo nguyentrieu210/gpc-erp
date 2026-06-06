@@ -8,6 +8,6 @@ export default defineConfig({
     frappeui({ frappeProxy: true, lucideIcons: true, jinjaBootData: true, buildConfig: { indexHtmlPath: '../quantri/www/quantri_app.html', emptyOutDir: true, sourcemap: true } }),
     vue(),
   ],
-  resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
+  resolve: { alias: { '@': path.resolve(__dirname, 'src'), '@shared': path.resolve(__dirname, 'src/_shared') } },
   server: { fs: { allow: [path.resolve(__dirname, '..')] } },
 })

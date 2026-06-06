@@ -1540,6 +1540,116 @@ def get_warehouse_tree():
     return {"trees": roots, "total_warehouses": len(all_wh)}
 
 
+# ---------------------------------------------------------------------------
+# LANDED COST — phân bổ chi phí vào giá vốn (shipping/phí/insurance)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_landed_cost_vouchers(search="", page=1, page_length=30):
+    page, page_length = cint(page) or 1, cint(page_length) or 30
+    filters = {"docstatus": ["!=", 2], "company": _company()}
+    or_filters = [["name", "like", f"%{search}%"]] if search else None
+    total = frappe.db.count("Landed Cost Voucher", filters)
+    rows = frappe.get_all("Landed Cost Voucher", filters=filters, or_filters=or_filters,
+                          fields=["name", "distribute_charges_based_on", "total_taxes_and_charges", "posting_date", "docstatus"],
+                          order_by="creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    return {"entries": rows, "total": total, "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def create_landed_cost(receipt_docs, charges, distribute_charges_based_on="Quantity", submit=1):
+    if isinstance(receipt_docs, str): receipt_docs = _json.loads(receipt_docs)
+    if isinstance(charges, str): charges = _json.loads(charges)
+    company = _company()
+    doc = frappe.new_doc("Landed Cost Voucher")
+    doc.company = company
+    doc.distribute_charges_based_on = distribute_charges_based_on
+    for r in receipt_docs:
+        doc.append("purchase_receipts", {"receipt_document_type": "Purchase Receipt", "receipt_document": r.get("name"), "supplier": r.get("supplier")})
+    for c in charges:
+        acct = _acct(c.get("account_number", "1561"), company) or c.get("account")
+        doc.append("taxes", {"description": c.get("description"), "amount": flt(c.get("amount")),
+                             "expense_account": acct or frappe.db.get_value("Account", {"account_type": "Expense Account", "is_group": 0, "company": company}, "name")})
+    doc.insert(ignore_permissions=True)
+    if cint(submit): doc.submit()
+    return doc.as_dict()
+
+
+# ---------------------------------------------------------------------------
+# PICK LIST — chọn hàng từ kho để giao (từ SO hoặc Material Request)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_pick_lists(search="", page=1, page_length=30):
+    page, page_length = cint(page) or 1, cint(page_length) or 30
+    filters = {"docstatus": ["!=", 2], "company": _company()}
+    or_filters = [["name", "like", f"%{search}%"]] if search else None
+    total = frappe.db.count("Pick List", filters)
+    rows = frappe.get_all("Pick List", filters=filters, or_filters=or_filters,
+                          fields=["name", "purpose", "status", "docstatus", "creation"],
+                          order_by="creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    return {"entries": rows, "total": total, "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def create_pick_list(items, locations, purpose="Delivery", submit=0):
+    if isinstance(items, str): items = _json.loads(items)
+    if isinstance(locations, str): locations = _json.loads(locations)
+    company = _company()
+    doc = frappe.new_doc("Pick List")
+    doc.company = company; doc.purpose = purpose
+    for it in items:
+        doc.append("locations", {"item_code": it.get("item_code"), "qty": flt(it.get("qty")) or 1,
+                                  "warehouse": it.get("warehouse"), "sales_order": it.get("sales_order")})
+    doc.insert(ignore_permissions=True)
+    if cint(submit): doc.submit()
+    return doc.as_dict()
+
+
+# ---------------------------------------------------------------------------
+# BATCH EXPIRY ALERT — cảnh báo lô hết hạn
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_expiring_batches(days_ahead=30):
+    """Batch sắp hết hạn trong N ngày tới."""
+    from frappe.utils import add_days
+    cutoff = add_days(today(), cint(days_ahead) or 30)
+    rows = frappe.get_all("Batch", filters={"disabled": 0, "expiry_date": ["between", [today(), cutoff]]},
+                          fields=["name", "batch_id", "item", "item_name", "expiry_date", "expiry_date", "batch_qty"],
+                          order_by="expiry_date asc", limit_page_length=100)
+    return {"batches": rows, "count": len(rows)}
+
+
+@frappe.whitelist()
+def get_negative_stock():
+    """Mặt hàng có tồn âm (actual_qty < 0 trong Bin)."""
+    rows = []
+    for b in frappe.get_all("Bin", filters={"actual_qty": ["<", 0]},
+                            fields=["item_code", "warehouse", "actual_qty", "stock_value"],
+                            order_by="actual_qty asc", limit_page_length=50):
+        rows.append({"item_code": b.item_code, "item_name": frappe.db.get_value("Item", b.item_code, "item_name"),
+                     "warehouse": b.warehouse, "actual_qty": flt(b.actual_qty)})
+    return {"items": rows, "count": len(rows)}
+
+
+@frappe.whitelist()
+def create_scrap_entry(item_code, qty, warehouse, rate=0, submit=1):
+    """Phiếu hủy/sứt vỡ (Material Issue với Stock Entry)."""
+    company = _company()
+    wh_db = frappe.db.get_value("Warehouse", warehouse, "company")
+    doc = frappe.new_doc("Stock Entry")
+    doc.stock_entry_type = "Material Issue"
+    doc.company = company
+    doc.append("items", {"item_code": item_code, "qty": flt(qty), "s_warehouse": warehouse,
+                          "basic_rate": flt(rate) or frappe.db.get_value("Item", item_code, "valuation_rate") or 0})
+    doc.set_posting_time = 1
+    doc.posting_date = today()
+    doc.insert(ignore_permissions=True)
+    if cint(submit): doc.submit()
+    return doc.as_dict()
+
+
 @frappe.whitelist()
 def get_current_user():
     return {

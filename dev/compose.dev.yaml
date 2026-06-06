@@ -42,7 +42,7 @@ services:
       - >-
         . /home/frappe/.nvm/nvm.sh 2>/dev/null;
         cd /home/frappe/frappe-bench;
-        for a in portal hr quantri muahang crm_ui tckt kho kinhdoanh duan; do
+        for a in portal hr quantri muahang crm_ui tckt kho kinhdoanh duan taisan; do
           ./env/bin/pip install -e apps/$${a} -q 2>/dev/null;
           target=$${a}/$${a}/public;
           ln -sfn /home/frappe/frappe-bench/apps/$${a}/$${a}/public /home/frappe/frappe-bench/sites/assets/$${a} 2>/dev/null;
@@ -74,6 +74,7 @@ services:
       - ../apps/quantri:/home/frappe/frappe-bench/apps/quantri
       - ../apps/muahang:/home/frappe/frappe-bench/apps/muahang
       - ../apps/duan:/home/frappe/frappe-bench/apps/duan
+      - ../apps/taisan:/home/frappe/frappe-bench/apps/taisan
       # node_modules trong named volume (tránh bind-mount Windows chậm). Mỗi app 1 volume.
       - portal_nm:/home/frappe/frappe-bench/apps/portal/frontend/node_modules
       - hr_nm:/home/frappe/frappe-bench/apps/hr/frontend/node_modules
@@ -84,6 +85,7 @@ services:
       - tckt_nm:/home/frappe/frappe-bench/apps/tckt/frontend/node_modules
       - quantri_nm:/home/frappe/frappe-bench/apps/quantri/frontend/node_modules
       - muahang_nm:/home/frappe/frappe-bench/apps/muahang/frontend/node_modules
+      - taisan_nm:/home/frappe/frappe-bench/apps/taisan/frontend/node_modules
 
 volumes:
   db-data:
@@ -97,4 +99,5 @@ volumes:
   duan_nm:
   quantri_nm:
   muahang_nm:
+  taisan_nm:
   tckt_nm:

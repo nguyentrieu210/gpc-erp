@@ -4,6 +4,61 @@ Nhật ký tiến độ dự án. Mục mới nhất ở trên cùng. Múi giờ
 
 ---
 
+## 2026-06-06 — **Đại tu "ngang Tuyển dụng" theo ERPNext — Phase 0 (Shared kit) + Phase 1 (Bán hàng)** ✅
+
+**Bối cảnh:** User: chỉ module Tuyển dụng đầy đủ, các phân hệ khác sơ sài/không giống ERPNext. Chốt: giữ SPA tùy biến, nâng TẤT CẢ phân hệ lên ngang Tuyển dụng, bám sát nghiệp vụ ERPNext, **tách bộ UI dùng chung trước**. Kế hoạch: `~/.claude/plans/tao-th-y-m-i-module-scalable-pudding.md`.
+
+**Phase 0 — Bộ UI/Backend dùng chung (`shared/`):**
+- `shared/ui/` (nguồn canonical): composables `useFrappeApi`+`callApi`, `useToast`; utils `date`/`format`/`printHtml`; `styles/index.css`; **11 component "Lego"**: PageHeader, DataTable (search/filter/sort/phân trang/chọn nhiều), DetailLayout (banner+2 cột), FormModal, LineItemsEditor (bảng dòng hàng + auto giá), EntityPicker (tìm-chọn qua API), Kanban (kéo-thả), StatusBadge, StatCard, Avatar, ActivityTimeline. Barrel `index.js` → `import { DataTable, ... } from '@shared'`.
+- `shared/py/gpc_common.py` (helper backend dùng chung), `shared/sync.sh` (đồng bộ `shared/ui` → `apps/<app>/frontend/src/_shared`, chạy cả Git Bash lẫn Docker).
+- **Wiring:** alias `@shared`→`src/_shared` trong vite.config (kinhdoanh/tckt/crm_ui/kho/muahang); `.gitignore` bỏ qua `_shared` (copy lúc build); Dockerfile COPY `shared/` + chạy `sync.sh` trước `yarn build`.
+- **Gotcha giải quyết:** file shared ngoài node_modules của app sẽ lỗi resolve `frappe-ui`/`vue` (hoisting) → giải pháp sync-copy vào `src/_shared` (trong project root) thay vì alias ra ngoài. `kho.api.get_items` trả `{items}` (KHÔNG `entries`); `get_warehouses` trả mảng trực tiếp → set resultKey đúng cho EntityPicker/LineItemsEditor.
+- **GATE:** build kinhdoanh trong container 0 lỗi với `@shared`.
+
+**Phase 1 — Bán hàng (`kinhdoanh`) full:**
+- **Backend (+):** `print_delivery_note`/`print_sales_invoice`, `cancel_delivery_note`/`cancel_sales_invoice`, `get_delivery_note` (single), `get_doc_activity(doctype,name)` (timeline dùng chung mọi phase), `get_sales_dashboard` mở rộng (doanh thu 6 tháng + top mặt hàng 90 ngày + recent SO). Dọn `@frappe.whitelist()` thừa.
+- **Frontend (viết lại từ stub 13–16 dòng → full):** Quotations + QuotationDetail, SalesOrders + SalesOrderDetail (tiến độ giao/HĐ, tạo DN/SI, linked docs), DeliveryNotes + DeliveryNoteDetail (trả hàng), SalesInvoices + SalesInvoiceDetail (thu tiền, credit note), Customers + CustomerDetail (sổ công nợ GL 131), Home (dashboard KPI + biểu đồ doanh thu + top hàng + recent). Router +6 route chi tiết. Tất cả dùng `@shared`.
+- **Verify:** build 0 lỗi (shared tách chunk dùng chung); HTTP `/kinhdoanh_app` 200; **chuỗi GL end-to-end** (bench, rollback): SO 220k→DN `Dr632/Cr1561 40k`→SI `Cr5111 200k + Cr VAT 20k / Dr131 220k`→Payment→outstanding=0; activity + in HĐ OK.
+
+### Phase 2 — Tài chính (`tckt`) full ✅
+- **Backend (+):** `get_accounts`/`get_cost_centers` (picker), `get_doc_activity`, `print_journal_entry` (phiếu kế toán VN), `get_payment_entries`/`get_payment_entry` (thu/chi), `get_cash_flow` (lưu chuyển tiền theo TK tiền), `get_budgets`/`create_budget`/`get_budget_variance` (ngân sách), dashboard mở rộng (tồn quỹ/phải thu/phải trả/LN tháng).
+- **Frontend:** Home dashboard (KPI + breakdown GL + recent), JournalEntries (form Dr/Cr cân đối realtime) + JournalEntryDetail (in/ghi sổ/hủy/activity), GeneralLedger (account picker + lọc voucher_type + drill-down chứng từ), TrialBalance, ChartOfAccounts (gom nhóm root_type), ProfitLoss, BalanceSheet, **CashFlow** (mới), **Budgets** (mới), **PaymentEntries** (mới). Router +5 route.
+- **Gotcha:** doctype **Budget** bản này đổi schema — dùng `from_fiscal_year` + `account` đơn + `budget_amount` (KHÔNG có child "Budget Account"/field `fiscal_year`) → `create_budget` 1 account/doc, dùng `meta.has_field` guard. `bench execute` nuốt OperationalError (fallback eval→NameError) → verify field doctype bằng HTTP.
+- **Verify:** build 0 lỗi; HTTP `/tckt_app` 200; `create_budget`→`get_budget_variance` (dự toán 1tr/thực tế 0) OK; cash_flow/accounts/payment_entries/activity OK.
+
+### Phase 4 — Mua hàng (`muahang`) full ✅
+- **Backend (+):** `get_doc_activity`, `get_purchase_request` (single), `print_purchase_invoice`, `make_purchase_return(doctype,name)` (trả hàng/debit note), **RFQ** (`get/create_rfq` + `get_supplier_quotations` + `make_po_from_supplier_quotation`).
+- **Frontend:** Home (StatCard), PurchaseRequests (EntityPicker + LineItemsEditor) + PurchaseRequestDetail (submit/toPO/activity), PurchaseReceipts (EntityPicker NCC + Warehouse) + PurchaseReceiptDetail (return/print), PurchaseInvoices (EntityPicker) + PurchaseInvoiceDetail (payment/return/print), **RFQ** (2 tab: Yêu cầu báo giá + Báo giá NCC → tạo PO), router +6 route.
+- **Verify:** build 0 lỗi; HTTP `/muahang_app` 200; RFQ/return/print PI OK.
+
+### Phase 5 — Kho (`kho`) tính năng nâng cao ✅
+- **Backend (+):** `get_landed_cost_vouchers`/`create_landed_cost` (phân bổ chi phí vào giá vốn), `get_pick_lists`/`create_pick_list`, `get_expiring_batches(days_ahead)` (cảnh báo lô hết hạn), `get_negative_stock`, `create_scrap_entry` (phiếu hủy Material Issue).
+- **Verify:** build 0 lỗi; HTTP `/kho_app` 200; tất cả endpoint mới OK.
+
+---
+
+## ✅ TỔNG KẾT ĐẠI TU (2026-06-06)
+
+Toàn bộ **5/5 phân hệ nghiệp vụ** đã được nâng lên **full ngang Tuyển dụng** (dashboard + đa tab/kanban + list DataTable + detail + form + in VN + activity timeline), bám sát ERPNext:
+| Phân hệ | Trước | Sau | App |
+|---|---|---|---|
+| Bán hàng | ~105 dòng (stub) | 10 trang full (list+detail+form+print+return) | kinhdoanh |
+| Tài chính | ~178 dòng (stub) | 11 trang full (JE/GL/TB/COA/P&L/BS/CashFlow/Budgets/PE/BR) | tckt |
+| CRM | ~83 dòng | 8 trang full (kanban Lead/Opp + Contacts/Activities/Campaigns) | crm_ui |
+| Mua hàng | ~356 dòng (60%) | Nâng detail + RFQ/return | muahang |
+| Kho | ~2.223 dòng (75%) | Landed cost + Pick list + Expiry alert + Scrap | kho |
+
+**+ Phân hệ mới: Quản lý Tài sản (`taisan`)** — 9 trang (Home/List/Detail/Categories/Movements/Maintenance/Repairs/Locations/Setup), reuse 26 doctype ERPNext Assets, khấu hao, điều chuyển, bảo dưỡng, sửa chữa. Đã seed 7 loại TSCĐ mặc định (TT200).
+
+**+ Trợ lý AI toàn ERP** (`shared/ui/components/AssistantBot.vue` — floating chat widget góc phải dưới):
+- Kiến thức built-in: trả lời tức thì 10+ câu hỏi thường gặp (cách tạo đơn bán, chạy lương, đối chiếu NH, ghi nhận TSCĐ…).
+- Gọi DeepSeek API (qua `portal.api.erp_assistant`) cho câu hỏi phức tạp, có context trang hiện tại.
+- Đã gắn vào App.vue của 10 app (portal/hr/crm_ui/tckt/kho/kinhdoanh/quantri/muahang/duan/taisan).
+
+**Bộ shared kit:** `C:\custom erp\shared\` — 12 component tái dùng (DataTable, DetailLayout, LineItemsEditor, EntityPicker, Kanban, FormModal, **AssistantBot**...) + helper Python. Dùng alias `@shared` sau chỉ chạy `bash shared/sync.sh`.
+
+---
+
 ## 2026-06-06 — **IMP-1/2/3: Item Price + Biến thể + Bank Recon + Workflow duyệt** ✅
 
 **Bối cảnh:** So với ERPNext gốc, GPC ERP thiếu: bảng giá, hàng biến thể, đối chiếu ngân hàng, workflow duyệt chứng từ.

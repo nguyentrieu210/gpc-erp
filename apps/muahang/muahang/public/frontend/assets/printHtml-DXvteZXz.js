@@ -1,0 +1,2 @@
+function c(e,n="In chứng từ"){const t=window.open("","_blank","width=900,height=700");if(!t){alert("Trình duyệt chặn cửa sổ in. Vui lòng cho phép pop-up.");return}t.document.open(),t.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${n}</title></head><body>${e}</body></html>`),t.document.close(),t.focus(),setTimeout(()=>{try{t.print()}catch{}},350)}export{c as p};
+//# sourceMappingURL=printHtml-DXvteZXz.js.map

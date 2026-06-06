@@ -83,6 +83,16 @@ DEFAULT_MODULES = [
 		"sort_order": 35,
 		"description": "Nhà cung cấp, yêu cầu mua, đơn mua, báo giá",
 	},
+	{
+		"route_key": "taisan",
+		"module_name": "Tài sản",
+		"subdomain_url": "/taisan_app",
+		"icon": "tool",
+		"color": "#0d9488",
+		"required_role": "Accounts User",
+		"sort_order": 45,
+		"description": "Tài sản cố định, khấu hao, bảo dưỡng, sửa chữa",
+	},
 ]
 
 

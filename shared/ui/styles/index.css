@@ -45,6 +45,7 @@
 .btn-secondary:hover, .btn-secondary:focus, .btn-secondary:active { background-color: #e5e7eb !important; color: #374151 !important; border-color: #9ca3af !important; }
 
 button, .btn { border-radius: 0.75rem !important; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important; }
+button.flex, .btn.flex { display: inline-flex !important; height: auto !important; align-items: center !important; }
 button svg, .btn svg, .app-card svg, .app-card-interactive svg,
 .rounded-lg.border.bg-white svg, .rounded-xl.border.bg-white svg, .rounded-2xl.border.bg-white svg { stroke: currentColor !important; color: inherit !important; }
 
@@ -63,7 +64,33 @@ tr:hover td { background-color: #f9fafb !important; }
 .divide-y > * { transition: background-color 0.15s ease !important; }
 .divide-y > *:hover { background-color: #f9fafb !important; }
 
+/* ── Shortcut themes (dashboard quick-add buttons) ── */
+.shortcut-green { border: 1px dashed #a7f3d0 !important; background-color: rgba(209, 250, 229, 0.2) !important; color: #047857 !important; }
+.shortcut-green:hover { background-color: #059669 !important; color: #fff !important; border-color: #059669 !important; }
+.shortcut-indigo { border: 1px dashed #c7d2fe !important; background-color: rgba(224, 231, 255, 0.2) !important; color: #4338ca !important; }
+.shortcut-indigo:hover { background-color: #4f46e5 !important; color: #fff !important; border-color: #4f46e5 !important; }
+.shortcut-violet { border: 1px dashed #ddd6fe !important; background-color: rgba(237, 233, 254, 0.2) !important; color: #6d28d9 !important; }
+.shortcut-violet:hover { background-color: #7c3aed !important; color: #fff !important; border-color: #7c3aed !important; }
+.shortcut-pink { border: 1px dashed #fbcfe8 !important; background-color: rgba(253, 224, 241, 0.2) !important; color: #be185d !important; }
+.shortcut-pink:hover { background-color: #db2777 !important; color: #fff !important; border-color: #db2777 !important; }
+
+/* ── Metric card hover/active safeguard ── */
+.group:hover .bg-indigo-50, .group:active .bg-indigo-50, .group:focus .bg-indigo-50 { background-color: #4f46e5 !important; color: #fff !important; }
+.group:hover .bg-indigo-50 svg, .group:active .bg-indigo-50 svg, .group:focus .bg-indigo-50 svg { stroke: #fff !important; color: #fff !important; }
+.group:hover .bg-violet-50, .group:active .bg-violet-50, .group:focus .bg-violet-50 { background-color: #7c3aed !important; color: #fff !important; }
+.group:hover .bg-violet-50 svg, .group:active .bg-violet-50 svg, .group:focus .bg-violet-50 svg { stroke: #fff !important; color: #fff !important; }
+.group:hover .bg-emerald-50, .group:active .bg-emerald-50, .group:focus .bg-emerald-50 { background-color: #10b981 !important; color: #fff !important; }
+.group:hover .bg-emerald-50 svg, .group:active .bg-emerald-50 svg, .group:focus .bg-emerald-50 svg { stroke: #fff !important; color: #fff !important; }
+.group:hover .bg-amber-50, .group:active .bg-amber-50, .group:focus .bg-amber-50 { background-color: #f59e0b !important; color: #fff !important; }
+.group:hover .bg-amber-50 svg, .group:active .bg-amber-50 svg, .group:focus .bg-amber-50 svg { stroke: #fff !important; color: #fff !important; }
+
 /* ── Premium loading indicator sizing fix ── */
 svg.animate-spin.max-w-xs:not([class^='w-']):not([class*=' w-']) { width: 1.75rem !important; }
 svg.animate-spin.max-w-xs:not([class^='h-']):not([class*=' h-']) { height: 1.75rem !important; }
 svg.animate-spin.max-w-xs:not([class^='text-']):not([class*=' text-']) { color: #6366f1 !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }

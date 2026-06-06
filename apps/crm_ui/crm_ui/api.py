@@ -263,9 +263,147 @@ def create_customer(customer_name, customer_type="Company", customer_group="Comm
 @frappe.whitelist()
 def get_crm_dashboard():
     val = sum(flt(o.opportunity_amount) for o in frappe.get_all("Opportunity", {"status": ["not in", ["Closed Lost", "Closed Won"]]}, ["opportunity_amount"]))
+    # Phễu Lead
+    lead_funnel = [{"status": LEAD_STATUS_VI.get(s, s), "count": frappe.db.count("Lead", {"status": s})} for s in LEAD_STATUSES]
+    # Giai đoạn cơ hội
+    opp_stages = []
+    for st in ["Open", "Qualification", "Needs Analysis", "Proposal", "Negotiation", "Closed Won", "Closed Lost"]:
+        cnt = frappe.db.count("Opportunity", {"status": st})
+        if cnt:
+            opp_stages.append({"stage": OPP_VI.get(st, st), "count": cnt})
+    recent_leads = frappe.get_all("Lead", fields=["name", "lead_name", "status", "creation"], order_by="creation desc", limit=6)
+    for r in recent_leads:
+        r["status_vi"] = LEAD_STATUS_VI.get(r.status, r.status)
     return {"leads_total": frappe.db.count("Lead"), "leads_new": frappe.db.count("Lead", {"status": "Lead"}),
             "opportunities_total": frappe.db.count("Opportunity"), "opportunities_value": val,
-            "customers_total": frappe.db.count("Customer"), "won_this_month": frappe.db.count("Opportunity", {"status": "Closed Won", "modified": [">=", get_first_day(today())]})}
+            "customers_total": frappe.db.count("Customer"),
+            "won_this_month": frappe.db.count("Opportunity", {"status": "Closed Won", "modified": [">=", get_first_day(today())]}),
+            "open_activities": frappe.db.count("ToDo", {"status": "Open"}),
+            "lead_funnel": lead_funnel, "opp_stages": opp_stages, "recent_leads": recent_leads}
+
+
+# ---------------------------------------------------------------------------
+# ACTIVITY TIMELINE (dùng chung)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_doc_activity(doctype, name):
+    rows = frappe.get_all("Comment",
+        filters={"reference_doctype": doctype, "reference_name": name,
+                 "comment_type": ["in", ["Comment", "Info", "Created", "Updated"]]},
+        fields=["content", "comment_by", "owner", "creation", "comment_type"], order_by="creation desc", limit=60)
+    return [{"time": str(c.creation), "user": c.comment_by or c.owner, "action": c.comment_type,
+             "detail": frappe.utils.strip_html(c.content or "")} for c in rows]
+
+
+# ---------------------------------------------------------------------------
+# CONTACTS (Liên hệ)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_contacts(search="", page=1, page_length=50):
+    page, page_length = cint(page) or 1, cint(page_length) or 50
+    or_filters = None
+    if search:
+        or_filters = [["first_name", "like", f"%{search}%"], ["email_id", "like", f"%{search}%"], ["mobile_no", "like", f"%{search}%"], ["company_name", "like", f"%{search}%"]]
+    total = frappe.db.count("Contact")
+    rows = frappe.get_all("Contact", or_filters=or_filters,
+                          fields=["name", "first_name", "last_name", "email_id", "mobile_no", "company_name", "designation", "creation"],
+                          order_by="creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    return {"entries": rows, "total": total, "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def get_contact(name):
+    return frappe.get_doc("Contact", name).as_dict()
+
+
+@frappe.whitelist()
+def create_contact(first_name, last_name=None, email=None, mobile=None, company_name=None, designation=None):
+    doc = frappe.new_doc("Contact")
+    doc.first_name = first_name
+    doc.last_name = last_name
+    doc.company_name = company_name
+    doc.designation = designation
+    if email:
+        doc.append("email_ids", {"email_id": email, "is_primary": 1})
+    if mobile:
+        doc.append("phone_nos", {"phone": mobile, "is_primary_mobile_no": 1})
+    doc.insert(ignore_permissions=True)
+    _log("Contact", doc.name, "create", first_name)
+    return doc.as_dict()
+
+
+# ---------------------------------------------------------------------------
+# ACTIVITIES / FOLLOW-UP (ToDo + Communication)
+# ---------------------------------------------------------------------------
+
+ACT_TYPE_VI = {"call": "Gọi điện", "email": "Email", "meeting": "Họp", "task": "Công việc", "follow_up": "Theo dõi"}
+
+
+@frappe.whitelist()
+def get_activities(reference_doctype=None, reference_name=None, status=None, page=1, page_length=50):
+    page, page_length = cint(page) or 1, cint(page_length) or 50
+    filters = {}
+    if reference_doctype and reference_name:
+        filters["reference_type"] = reference_doctype
+        filters["reference_name"] = reference_name
+    if status:
+        filters["status"] = status
+    total = frappe.db.count("ToDo", filters)
+    rows = frappe.get_all("ToDo", filters=filters,
+                          fields=["name", "description", "status", "priority", "date", "allocated_to",
+                                  "reference_type", "reference_name", "creation"],
+                          order_by="date asc, creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    return {"entries": rows, "total": total, "open": frappe.db.count("ToDo", dict(filters, status="Open")),
+            "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def create_activity(description, date=None, priority="Medium", reference_doctype=None, reference_name=None, allocated_to=None):
+    doc = frappe.new_doc("ToDo")
+    doc.description = description
+    doc.date = getdate(date) if date else getdate(today())
+    doc.priority = priority
+    doc.allocated_to = allocated_to or frappe.session.user
+    if reference_doctype and reference_name:
+        doc.reference_type = reference_doctype
+        doc.reference_name = reference_name
+    doc.insert(ignore_permissions=True)
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def complete_activity(name, reopen=0):
+    frappe.db.set_value("ToDo", name, "status", "Open" if cint(reopen) else "Closed")
+    return {"name": name, "status": "Open" if cint(reopen) else "Closed"}
+
+
+# ---------------------------------------------------------------------------
+# CAMPAIGNS (Chiến dịch)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_campaigns(search="", page=1, page_length=50):
+    page, page_length = cint(page) or 1, cint(page_length) or 50
+    or_filters = [["campaign_name", "like", f"%{search}%"]] if search else None
+    total = frappe.db.count("Campaign")
+    rows = frappe.get_all("Campaign", or_filters=or_filters,
+                          fields=["name", "campaign_name", "creation"],
+                          order_by="creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    for r in rows:
+        r["lead_count"] = frappe.db.count("Lead", {"campaign_name": r.name})
+    return {"entries": rows, "total": total, "pages": max(1, ((total or 0) + page_length - 1) // page_length)}
+
+
+@frappe.whitelist()
+def create_campaign(campaign_name, description=None):
+    doc = frappe.new_doc("Campaign")
+    doc.campaign_name = campaign_name
+    if description and doc.meta.has_field("description"):
+        doc.description = description
+    doc.insert(ignore_permissions=True)
+    return doc.as_dict()
 
 
 @frappe.whitelist()

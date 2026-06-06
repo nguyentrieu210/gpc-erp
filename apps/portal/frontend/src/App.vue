@@ -1,5 +1,2 @@
-<template>
-  <RouterView />
-</template>
-
-<script setup></script>
+<template><RouterView /><AssistantBot /></template>
+<script setup>import { AssistantBot } from '@shared'</script>

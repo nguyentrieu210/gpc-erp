@@ -820,6 +820,22 @@ def convert_to_employee(applicant, first_name=None, last_name=None, gender=None,
 		except: dob_parsed = date_of_birth
 
 	salary_val = salary or getattr(app, "custom_offered_salary", 0) or 0
+
+	# Map gender to valid Frappe Gender options (Male, Female, Other)
+	if gender:
+		gender_lower = gender.strip().lower()
+		if gender_lower in ("nam", "male", "m"):
+			gender = "Male"
+		elif gender_lower in ("nữ", "nu", "female", "f"):
+			gender = "Female"
+		elif gender_lower in ("khác", "khac", "other", "o"):
+			gender = "Other"
+		else:
+			matched = frappe.db.get_value("Gender", {"name": ["like", f"%{gender}%"]})
+			gender = matched or "Male"
+	else:
+		gender = "Male"
+
 	emp = frappe.get_doc({
 		"doctype": "Employee",
 		"first_name": first_name,

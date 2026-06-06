@@ -1,0 +1,18 @@
+[project]
+name = "taisan"
+authors = [
+    { name = "GPC", email = "trieu.nt93@gmail.com"}
+]
+description = "GPC ERP - Fixed Asset Management"
+requires-python = ">=3.14"
+dynamic = ["version"]
+dependencies = []
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.dev-dependencies]
+
+[deploy.dependencies.apt]
+packages = []

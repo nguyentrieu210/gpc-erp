@@ -3037,7 +3037,14 @@ async function openConvertModal(iv) {
       
       const cv_data = detail.cv_data || {}
       if (cv_data.gender) {
-        convertForm.value.gender = cv_data.gender === 'Nữ' || cv_data.gender === 'Female' ? 'Female' : 'Male'
+        const g = String(cv_data.gender).trim().toLowerCase()
+        if (g === 'nữ' || g === 'female' || g === 'nu' || g === 'f') {
+          convertForm.value.gender = 'Female'
+        } else if (g === 'nam' || g === 'male' || g === 'm') {
+          convertForm.value.gender = 'Male'
+        } else {
+          convertForm.value.gender = 'Other'
+        }
       }
       if (cv_data.dob) {
         const dobStr = String(cv_data.dob).trim()

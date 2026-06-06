@@ -259,3 +259,43 @@ def portal_logout():
 
 
 
+
+
+# ── TRỢ LÝ AI ERP ──────────────────────────────────────────────────────────
+
+ERP_KNOWLEDGE = """Ban la tro ly AI cho he thong GPC ERP — bo ERP noi bo xay tren Frappe v16/ERPNext, hach toan theo TT200 Viet Nam.
+Cac phan he: Nhan su (/hr_app), Kinh doanh (/kinhdoanh_app), Mua hang (/muahang_app), Tai chinh (/tckt_app), Kho (/kho_app), CRM (/crm_app), Du an (/duan_app), Tai san (/taisan_app), Quan tri (/quantri_app).
+Tra loi NGAN GON, tieng Viet, co buoc cu the + duong dan URL."""
+
+@frappe.whitelist(allow_guest=True)
+def erp_assistant(question, context=""):
+	api_key = frappe.conf.get("deepseek_api_key") or frappe.local.conf.get("deepseek_api_key")
+	if not api_key: api_key = frappe.get_conf().get("deepseek_api_key") or ""
+	if not api_key: return {"answer": "Chua cau hinh DeepSeek API key."}
+	try:
+		import requests as _r
+		resp = _r.post("https://api.deepseek.com/v1/chat/completions",
+			headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+			json={"model": "deepseek-chat", "messages": [
+				{"role": "system", "content": ERP_KNOWLEDGE},
+				{"role": "user", "content": f"Trang: {context}\nHoi: {question}"},
+			], "max_tokens": 500, "temperature": 0.3}, timeout=15)
+		if resp.status_code == 200: return {"answer": resp.json()["choices"][0]["message"]["content"]}
+		return {"answer": f"AI khong kha dung (HTTP {resp.status_code})."}
+	except Exception as e: return {"answer": f"Khong ket noi duoc AI: {str(e)[:200]}"}
+@frappe.whitelist(allow_guest=True)
+def erp_assistant(question, context=""):
+	import os
+	api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+	if not api_key: return {"answer": "Chua cau hinh DEEPSEEK_API_KEY trong bien moi truong."}
+	try:
+		import requests as _r
+		resp = _r.post("https://api.deepseek.com/chat/completions",
+			headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+			json={"model": "deepseek-chat", "messages": [
+				{"role": "system", "content": "Ban la tro ly AI cho GPC ERP (Frappe v16/ERPNext, TT200). Tra loi NGAN GON, tieng Viet, buoc cu the + URL."},
+				{"role": "user", "content": f"Trang: {context}\nHoi: {question}"},
+			], "max_tokens": 500, "temperature": 0.3}, timeout=20)
+		if resp.status_code == 200: return {"answer": resp.json()["choices"][0]["message"]["content"]}
+		return {"answer": f"AI khong kha dung (HTTP {resp.status_code})."}
+	except Exception as e: return {"answer": f"Khong ket noi AI: {str(e)[:200]}"}

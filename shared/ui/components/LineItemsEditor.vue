@@ -56,7 +56,7 @@ const props = defineProps({
   editable: { type: Boolean, default: true },
   showUom: { type: Boolean, default: true },
   itemApi: { type: String, default: 'kho.api.get_items' },
-  itemResultKey: { type: String, default: 'entries' },
+  itemResultKey: { type: String, default: 'items' },
   priceApi: String,          // vd 'kinhdoanh.api.get_selling_price' — GET {item_code} -> {rate} hoặc số
   priceParams: { type: Object, default: () => ({}) },
 })

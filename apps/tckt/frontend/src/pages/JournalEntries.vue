@@ -1,28 +1,90 @@
 <template>
-<div class="flex flex-col min-h-screen bg-gray-50"><header class="flex items-center gap-2 border-b bg-white px-4 py-3 sticky top-0"><button class="text-gray-500" @click="$router.push('/')"><FeatherIcon name="arrow-left" class="h-5 w-5"/></button><FeatherIcon name="edit-3" class="h-5 w-5 text-green-600"/><h1 class="text-lg font-bold flex-1">Phiếu kế toán</h1><Button variant="solid" theme="green" @click="openCreate">+ Tạo phiếu</Button></header>
-<main class="flex-1 p-4 max-w-4xl mx-auto"><div class="rounded-xl border bg-white divide-y"><div v-if="loading" class="py-10 text-center"><LoadingIndicator/></div>
-<div v-else-if="!rows.length" class="py-10 text-center text-gray-400">Chưa có phiếu</div>
-<div v-for="je in rows" :key="je.name" class="flex items-center px-4 py-3"><div class="flex-1"><div class="font-medium">{{ je.name }} <span :class="je.docstatus===1?'text-emerald-600':'text-amber-600'">{{ je.docstatus===1?'Đã ghi':'Nháp' }}</span></div><div class="text-xs text-gray-500">{{ $fmtDate(je.posting_date) }} · {{ je.user_remark||'' }}</div></div>
-<div class="text-right"><div class="text-sm">Nợ {{ fmtVnd(je.total_debit) }}</div><div class="text-xs text-gray-400">Có {{ fmtVnd(je.total_credit) }}</div></div></div></div>
-</main>
-<div v-if="show" class="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" @click.self="show=false"><div class="bg-white rounded-xl w-full max-w-2xl p-5 max-h-[92vh] overflow-y-auto"><h3 class="font-semibold mb-4">Bút toán mới</h3>
-<label class="block mb-3"><span class="text-sm text-gray-600">Ngày</span><input type="date" v-model="f.posting_date" class="inp"/></label>
-<label class="block mb-3"><span class="text-sm text-gray-600">Diễn giải</span><input v-model="f.remark" class="inp"/></label>
-<div class="border rounded-lg mb-3"><div class="grid grid-cols-12 gap-1 bg-gray-50 px-2 py-1.5 text-xs"><div class="col-span-5">Tài khoản</div><div class="col-span-3 text-right">Nợ</div><div class="col-span-3 text-right">Có</div><div class="col-span-1"></div></div>
-<div v-for="(a,i) in f.accounts" :key="i" class="grid grid-cols-12 gap-1 px-2 py-1.5 items-center border-t">
-<select v-model="a.account" class="col-span-5 inp !py-1 !text-xs"><option value="">— TK —</option><option v-for="ac in accts" :key="ac.name" :value="ac.name">{{ ac.account_number }} {{ ac.account_name }}</option></select>
-<input v-model.number="a.debit" type="number" class="col-span-3 inp !py-1 text-right"/><input v-model.number="a.credit" type="number" class="col-span-3 inp !py-1 text-right"/>
-<button class="col-span-1 text-red-500 text-xs" @click="f.accounts.splice(i,1)">×</button></div></div>
-<Button variant="subtle" size="sm" @click="f.accounts.push({account:'',debit:0,credit:0})">+ Dòng</Button>
-<div class="flex justify-end gap-2 mt-5"><Button variant="subtle" @click="show=false">Hủy</Button><Button variant="solid" theme="green" :loading="saving" @click="save">Ghi sổ</Button></div></div></div></div></template>
+  <div class="flex flex-col min-h-screen bg-gray-50">
+    <PageHeader title="Phiếu kế toán (Nhật ký)" icon="edit-3" icon-class="text-green-600">
+      <button class="btn-primary px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1" @click="openCreate"><FeatherIcon name="plus" class="h-4 w-4" /> Tạo phiếu</button>
+    </PageHeader>
+    <main class="flex-1 p-4 max-w-5xl mx-auto w-full">
+      <DataTable :rows="rows" :columns="columns" :loading="loading" search-placeholder="Tìm số phiếu / diễn giải…" :search-keys="['name', 'user_remark']" :filters="filterDefs" @row-click="goDetail">
+        <template #col-total_debit="{ value }"><span class="font-semibold">{{ fmtVnd(value) }}</span></template>
+        <template #col-docstatus="{ row }"><StatusBadge :status="row.docstatus === 1 ? 'Đã ghi sổ' : (row.docstatus === 2 ? 'Đã hủy' : 'Nháp')" /></template>
+        <template #col-posting_date="{ value }">{{ $fmtDate(value) }}</template>
+      </DataTable>
+    </main>
+
+    <FormModal :show="show" title="Tạo phiếu kế toán" icon="edit-3" width="max-w-3xl" hide-footer @close="show = false">
+      <div class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label class="text-xs text-gray-500">Ngày hạch toán</label><input v-model="form.posting_date" type="date" class="inp" /></div>
+          <div><label class="text-xs text-gray-500">Diễn giải</label><input v-model="form.remark" class="inp" placeholder="Nội dung bút toán…" /></div>
+        </div>
+        <div>
+          <label class="text-xs text-gray-500">Định khoản</label>
+          <div class="rounded-lg border bg-white overflow-hidden">
+            <table class="w-full text-sm">
+              <thead><tr><th class="px-2 py-2 text-left">Tài khoản</th><th class="px-2 py-2 text-right w-32">Nợ</th><th class="px-2 py-2 text-right w-32">Có</th><th class="w-8"></th></tr></thead>
+              <tbody>
+                <tr v-for="(ln, i) in form.lines" :key="i">
+                  <td class="px-2 py-1.5 min-w-[220px]"><EntityPicker v-model="ln.account" api="tckt.api.get_accounts" result-key="entries" value-key="name" label-key="label" sub-key="account_type" :display-text="ln.label" placeholder="Chọn TK…" /></td>
+                  <td class="px-2 py-1.5"><input v-model.number="ln.debit" type="number" min="0" step="any" class="inp text-right" @input="ln.credit = ln.debit ? 0 : ln.credit" /></td>
+                  <td class="px-2 py-1.5"><input v-model.number="ln.credit" type="number" min="0" step="any" class="inp text-right" @input="ln.debit = ln.credit ? 0 : ln.debit" /></td>
+                  <td class="px-2 py-1.5 text-center"><button class="text-gray-400 hover:text-rose-500" @click="form.lines.splice(i, 1)"><FeatherIcon name="trash-2" class="h-4 w-4" /></button></td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="bg-gray-50 font-semibold">
+                  <td class="px-2 py-2 text-right">Tổng</td>
+                  <td class="px-2 py-2 text-right">{{ money(totalDr) }}</td>
+                  <td class="px-2 py-2 text-right">{{ money(totalCr) }}</td><td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div class="flex items-center justify-between mt-2">
+            <button class="btn-secondary px-3 py-1.5 rounded-lg text-sm inline-flex items-center gap-1" @click="addLine"><FeatherIcon name="plus" class="h-4 w-4" /> Thêm dòng</button>
+            <span class="text-sm" :class="balanced ? 'text-emerald-600' : 'text-rose-600'">{{ balanced ? '✓ Cân đối' : 'Lệch ' + money(Math.abs(totalDr - totalCr)) }}</span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <button class="btn-secondary px-4 py-2 rounded-lg text-sm" @click="show = false">Hủy</button>
+        <button class="btn-secondary px-4 py-2 rounded-lg text-sm" :disabled="saving" @click="save(0)">Lưu nháp</button>
+        <button class="btn-primary px-4 py-2 rounded-lg text-sm font-medium" :disabled="saving || !balanced || totalDr === 0" @click="save(1)">{{ saving ? 'Đang lưu…' : 'Lưu & ghi sổ' }}</button>
+      </template>
+    </FormModal>
+    <div v-if="toast" class="fixed top-16 right-4 z-[60] px-4 py-2 rounded-lg shadow-lg text-sm font-medium" :class="toast.startsWith('✅') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'">{{ toast }}</div>
+  </div>
+</template>
 <script setup>
-import {ref,reactive} from 'vue'; import {Button,FeatherIcon,LoadingIndicator} from 'frappe-ui'; import {useFrappeApi,callApi} from '../composables/useFrappeApi'
-const rows=ref([]),loading=ref(false)
-const {data:coa}=useFrappeApi('tckt.api.get_chart_of_accounts',{initialData:{accounts:[]}})
-const accts=ref([])
-async function reload(){loading.value=true;try{rows.value=(await callApi('tckt.api.get_journal_entries',{},'GET'))?.entries||[];accts.value=(await callApi('tckt.api.get_chart_of_accounts',{},'GET'))?.accounts||[]}finally{loading.value=false}};reload()
-const show=ref(false),saving=ref(false);const f=reactive({posting_date:new Date().toISOString().slice(0,10),remark:'',accounts:[{account:'',debit:0,credit:0}]})
-function openCreate(){f.posting_date=new Date().toISOString().slice(0,10);f.remark='';f.accounts=[{account:'',debit:0,credit:0}];show.value=true}
-async function save(){const acs=f.accounts.filter(a=>a.account&&(a.debit>0||a.credit>0));if(!acs.length||!f.remark){alert('Nhập diễn giải + ít nhất 1 dòng');return};saving.value=true;try{await callApi('tckt.api.create_journal_entry',{accounts:JSON.stringify(acs),posting_date:f.posting_date,remark:f.remark,submit:1});show.value=false;reload()}catch(e){alert('Lỗi: '+(e?.message||e))}finally{saving.value=false}}
-function fmtVnd(v){return Number(v||0).toLocaleString('vi-VN')+' ₫'}
+import { ref, reactive, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { FeatherIcon } from 'frappe-ui'
+import { PageHeader, DataTable, FormModal, EntityPicker, StatusBadge, useToast, callApi, fmtVnd, money, today } from '@shared'
+const router = useRouter(); const { toast, ok, err } = useToast()
+const rows = ref([]); const loading = ref(false)
+const columns = [
+  { key: 'name', label: 'Số phiếu' }, { key: 'posting_date', label: 'Ngày' },
+  { key: 'user_remark', label: 'Diễn giải' }, { key: 'total_debit', label: 'Số tiền', align: 'right' },
+  { key: 'docstatus', label: 'Trạng thái' },
+]
+const filterDefs = [{ key: 'docstatus', label: 'Trạng thái', options: [{ value: '0', label: 'Nháp' }, { value: '1', label: 'Đã ghi sổ' }, { value: '2', label: 'Đã hủy' }] }]
+async function reload() { loading.value = true; try { rows.value = (await callApi('tckt.api.get_journal_entries', { page_length: 200 }, 'GET'))?.entries || [] } finally { loading.value = false } }
+reload()
+const show = ref(false); const saving = ref(false)
+const form = reactive({ posting_date: today(), remark: '', lines: [] })
+const totalDr = computed(() => form.lines.reduce((s, l) => s + Number(l.debit || 0), 0))
+const totalCr = computed(() => form.lines.reduce((s, l) => s + Number(l.credit || 0), 0))
+const balanced = computed(() => totalDr.value > 0 && Math.abs(totalDr.value - totalCr.value) < 0.5)
+function addLine() { form.lines.push({ account: '', label: '', debit: 0, credit: 0 }) }
+function openCreate() { form.posting_date = today(); form.remark = ''; form.lines = [{ account: '', label: '', debit: 0, credit: 0 }, { account: '', label: '', debit: 0, credit: 0 }]; show.value = true }
+async function save(submit) {
+  const lines = form.lines.filter((l) => l.account && (l.debit || l.credit))
+  if (lines.length < 2) return err('Cần ít nhất 2 dòng định khoản')
+  if (submit && !balanced.value) return err('Bút toán chưa cân đối')
+  saving.value = true
+  try {
+    const je = await callApi('tckt.api.create_journal_entry', { accounts: JSON.stringify(lines.map((l) => ({ account: l.account, debit: l.debit || 0, credit: l.credit || 0 }))), posting_date: form.posting_date, remark: form.remark, submit })
+    ok(submit ? 'Đã ghi sổ ' + je.name : 'Đã lưu nháp'); show.value = false; reload()
+  } catch (e) { err(e?.message || 'Lỗi') } finally { saving.value = false }
+}
+function goDetail(row) { router.push('/journal-entries/' + row.name) }
 </script>

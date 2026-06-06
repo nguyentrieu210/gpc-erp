@@ -429,9 +429,41 @@ def get_accounting_dashboard():
         GROUP BY voucher_type ORDER BY total_debit DESC
     """, (company, str(month_start)), as_dict=True)
 
+    def _root_sum(root_type, fd):
+        accts = frappe.get_all("Account", filters={"company": company, "root_type": root_type, "is_group": 0}, pluck="name")
+        if not accts:
+            return 0.0
+        r = frappe.db.sql("""SELECT SUM(debit)-SUM(credit) FROM `tabGL Entry`
+            WHERE company=%s AND is_cancelled=0 AND account IN %s AND posting_date >= %s""",
+            (company, tuple(accts), str(fd)))
+        return flt(r[0][0]) if r and r[0][0] else 0.0
+
+    def _acct_type_balance(acct_types):
+        accts = frappe.get_all("Account", filters={"company": company, "account_type": ["in", acct_types], "is_group": 0}, pluck="name")
+        if not accts:
+            return 0.0
+        r = frappe.db.sql("""SELECT SUM(debit)-SUM(credit) FROM `tabGL Entry`
+            WHERE company=%s AND is_cancelled=0 AND account IN %s""", (company, tuple(accts)))
+        return flt(r[0][0]) if r and r[0][0] else 0.0
+
+    revenue_mtd = -_root_sum("Income", month_start)   # Income là credit → đảo dấu
+    expense_mtd = _root_sum("Expense", month_start)
+    cash_balance = _acct_type_balance(["Cash", "Bank"])
+    receivable = _acct_type_balance(["Receivable"])
+    payable = -_acct_type_balance(["Payable"])
+
     return {
         "je_submitted": je_count,
         "je_draft": draft_je,
+        "je_count": je_count,
+        "gl_count": frappe.db.count("GL Entry", {"company": company, "is_cancelled": 0}),
+        "account_count": frappe.db.count("Account", {"company": company}),
+        "revenue_mtd": revenue_mtd,
+        "expense_mtd": expense_mtd,
+        "profit_mtd": revenue_mtd - expense_mtd,
+        "cash_balance": cash_balance,
+        "receivable": receivable,
+        "payable": payable,
         "gl_this_month": {
             "total_debit": flt(gl.get("total_debit")),
             "total_credit": flt(gl.get("total_credit")),
@@ -652,6 +684,204 @@ def apply_workflow_action(doctype, name, action):
     doc = frappe.get_doc(doctype, name)
     apply_workflow(doc, action)
     return {"doctype": doctype, "name": name, "action": action, "workflow_state": doc.workflow_state}
+
+
+# ---------------------------------------------------------------------------
+# PICKERS + ACTIVITY + PRINT (dùng cho UI mới)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_accounts(search="", root_type=None, only_ledger=1):
+    """Picker tài khoản (ledger) cho form JE."""
+    company = _company()
+    filters = {"company": company}
+    if cint(only_ledger):
+        filters["is_group"] = 0
+    if root_type:
+        filters["root_type"] = root_type
+    or_filters = None
+    if search:
+        or_filters = [["account_name", "like", f"%{search}%"], ["account_number", "like", f"%{search}%"], ["name", "like", f"%{search}%"]]
+    rows = frappe.get_all("Account", filters=filters, or_filters=or_filters,
+                          fields=["name", "account_name", "account_number", "root_type", "account_type"],
+                          order_by="account_number asc", limit_page_length=50)
+    for r in rows:
+        r["label"] = (f"{r.account_number} - {r.account_name}" if r.account_number else r.account_name)
+    return {"entries": rows}
+
+
+@frappe.whitelist()
+def get_cost_centers(search=""):
+    company = _company()
+    or_filters = [["cost_center_name", "like", f"%{search}%"]] if search else None
+    rows = frappe.get_all("Cost Center", filters={"company": company, "is_group": 0}, or_filters=or_filters,
+                          fields=["name", "cost_center_name"], order_by="cost_center_name asc", limit_page_length=50)
+    return {"entries": rows}
+
+
+@frappe.whitelist()
+def get_doc_activity(doctype, name):
+    rows = frappe.get_all("Comment",
+        filters={"reference_doctype": doctype, "reference_name": name,
+                 "comment_type": ["in", ["Comment", "Info", "Workflow", "Created", "Submitted", "Cancelled", "Updated"]]},
+        fields=["content", "comment_by", "owner", "creation", "comment_type"], order_by="creation desc", limit=60)
+    return [{"time": str(c.creation), "user": c.comment_by or c.owner, "action": c.comment_type,
+             "detail": frappe.utils.strip_html(c.content or "")} for c in rows]
+
+
+@frappe.whitelist()
+def print_journal_entry(name):
+    doc = frappe.get_doc("Journal Entry", name)
+    company = frappe.get_doc("Company", doc.company)
+    rows = ""
+    for i, a in enumerate(doc.accounts, 1):
+        an = frappe.db.get_value("Account", a.account, "account_name") or a.account
+        rows += (f"<tr><td style='text-align:center'>{i}</td><td>{frappe.utils.escape_html(an)}</td>"
+                 f"<td>{frappe.utils.escape_html(a.party or '')}</td>"
+                 f"<td style='text-align:right'>{_money(a.debit_in_account_currency)}</td>"
+                 f"<td style='text-align:right'>{_money(a.credit_in_account_currency)}</td></tr>")
+    d = doc.posting_date
+    return f"""<div style="font-family:'Times New Roman',serif;max-width:740px;margin:auto;padding:20px;color:#000">
+<div style="text-align:center;font-weight:bold">{frappe.utils.escape_html(company.company_name)}</div>
+<h2 style="text-align:center;margin:14px 0 2px">PHIẾU KẾ TOÁN</h2>
+<div style="text-align:center;font-size:13px;margin-bottom:10px">Ngày {d.strftime('%d/%m/%Y') if d else ''} · Số: {frappe.utils.escape_html(doc.name)}</div>
+<div style="font-size:13px;margin-bottom:6px"><b>Diễn giải:</b> {frappe.utils.escape_html(doc.user_remark or '')}</div>
+<table style="width:100%;border-collapse:collapse;font-size:13px" border="1"><thead><tr style="background:#f2f2f2"><th>STT</th><th>Tài khoản</th><th>Đối tượng</th><th>Nợ</th><th>Có</th></tr></thead>
+<tbody>{rows}<tr style="font-weight:bold"><td colspan="3" style="text-align:right">Tổng</td><td style="text-align:right">{_money(doc.total_debit)}</td><td style="text-align:right">{_money(doc.total_credit)}</td></tr></tbody></table>
+<div style="display:flex;justify-content:space-around;margin-top:40px;font-size:13px;text-align:center"><div><b>Người lập</b><br>(Ký)</div><div><b>Kế toán trưởng</b><br>(Ký)</div><div><b>Giám đốc</b><br>(Ký)</div></div></div>"""
+
+
+# ---------------------------------------------------------------------------
+# PAYMENT ENTRY (Phiếu thu/chi)
+# ---------------------------------------------------------------------------
+
+PE_TYPE_VI = {"Receive": "Phiếu thu", "Pay": "Phiếu chi", "Internal Transfer": "Chuyển nội bộ"}
+
+
+@frappe.whitelist()
+def get_payment_entries(search="", payment_type=None, page=1, page_length=50):
+    page, page_length = cint(page) or 1, cint(page_length) or 50
+    filters = {"docstatus": ["!=", 2]}
+    if payment_type:
+        filters["payment_type"] = payment_type
+    or_filters = None
+    if search:
+        or_filters = [["name", "like", f"%{search}%"], ["party_name", "like", f"%{search}%"], ["reference_no", "like", f"%{search}%"]]
+    total = frappe.db.count("Payment Entry", filters)
+    rows = frappe.get_all("Payment Entry", filters=filters, or_filters=or_filters,
+                          fields=["name", "payment_type", "party_type", "party", "party_name", "paid_amount",
+                                  "posting_date", "mode_of_payment", "docstatus", "reference_no"],
+                          order_by="posting_date desc, creation desc", limit_page_length=page_length, start=(page - 1) * page_length)
+    for r in rows:
+        r["type_vi"] = PE_TYPE_VI.get(r.payment_type, r.payment_type)
+    return {"entries": rows, "total": total, "pages": ((total or 0) + page_length - 1) // page_length}
+
+
+@frappe.whitelist()
+def get_payment_entry(name):
+    d = frappe.get_doc("Payment Entry", name).as_dict()
+    d["type_vi"] = PE_TYPE_VI.get(d.get("payment_type"), d.get("payment_type"))
+    return d
+
+
+# ---------------------------------------------------------------------------
+# CASH FLOW (Lưu chuyển tiền tệ — gián tiếp theo TK tiền)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_cash_flow(from_date, to_date):
+    from collections import defaultdict
+    company = _company(); fd, td = getdate(from_date), getdate(to_date)
+    cash_accts = frappe.get_all("Account", filters={"company": company, "account_type": ["in", ["Cash", "Bank"]], "is_group": 0}, pluck="name")
+    inflow = outflow = opening = 0.0
+    by_counter = defaultdict(lambda: {"in": 0.0, "out": 0.0})
+    for ca in cash_accts:
+        gls = frappe.get_all("GL Entry", filters={"account": ca, "company": company, "posting_date": ["between", [fd, td]], "is_cancelled": 0},
+                             fields=["debit", "credit", "voucher_type"], limit_page_length=0)
+        for g in gls:
+            inflow += flt(g.debit); outflow += flt(g.credit)
+            k = g.voucher_type or "Khác"
+            by_counter[k]["in"] += flt(g.debit); by_counter[k]["out"] += flt(g.credit)
+        s = frappe.db.sql("SELECT SUM(debit)-SUM(credit) FROM `tabGL Entry` WHERE account=%s AND company=%s AND posting_date<%s AND is_cancelled=0", (ca, company, fd))[0][0] or 0
+        opening += flt(s)
+    rows = [{"group": k, "inflow": v["in"], "outflow": v["out"], "net": v["in"] - v["out"]}
+            for k, v in sorted(by_counter.items(), key=lambda x: -(x[1]["in"] + x[1]["out"]))]
+    return {"opening": opening, "inflow": inflow, "outflow": outflow, "net": inflow - outflow,
+            "closing": opening + inflow - outflow, "rows": rows, "from_date": str(fd), "to_date": str(td)}
+
+
+# ---------------------------------------------------------------------------
+# BUDGET (Dự toán ngân sách + chênh lệch thực tế)
+# ---------------------------------------------------------------------------
+
+def _budget_fy_field():
+    """Bản ERPNext này dùng from_fiscal_year (không phải fiscal_year)."""
+    m = frappe.get_meta("Budget")
+    return "from_fiscal_year" if m.has_field("from_fiscal_year") else ("fiscal_year" if m.has_field("fiscal_year") else None)
+
+
+@frappe.whitelist()
+def get_budgets():
+    fyf = _budget_fy_field()
+    fields = ["name", "cost_center", "account", "budget_amount", "budget_against", "docstatus"]
+    if fyf:
+        fields.append(fyf)
+    rows = frappe.get_all("Budget", filters={"company": _company()}, fields=fields,
+                          order_by="creation desc", limit_page_length=0)
+    if fyf and fyf != "fiscal_year":
+        for r in rows:
+            r["fiscal_year"] = r.get(fyf)
+    return {"entries": rows, "fiscal_years": frappe.get_all("Fiscal Year", filters={"disabled": 0}, pluck="name")}
+
+
+@frappe.whitelist()
+def create_budget(cost_center, account, budget_amount, fiscal_year=None, submit=1):
+    """Budget bản này: 1 account + budget_amount mỗi doc (không có child 'Budget Account')."""
+    company = _company()
+    fy = fiscal_year or frappe.db.get_value("Fiscal Year", {"disabled": 0}, "name")
+    m = frappe.get_meta("Budget")
+    doc = frappe.new_doc("Budget")
+    doc.company = company
+    doc.budget_against = "Cost Center"
+    doc.cost_center = cost_center
+    doc.account = account
+    doc.budget_amount = flt(budget_amount)
+    fyd = frappe.db.get_value("Fiscal Year", fy, ["year_start_date", "year_end_date"], as_dict=True) or {}
+    if m.has_field("from_fiscal_year"):
+        doc.from_fiscal_year = fy
+        if m.has_field("to_fiscal_year"):
+            doc.to_fiscal_year = fy
+        if m.has_field("budget_start_date"):
+            doc.budget_start_date = fyd.get("year_start_date")
+        if m.has_field("budget_end_date"):
+            doc.budget_end_date = fyd.get("year_end_date")
+    elif m.has_field("fiscal_year"):
+        doc.fiscal_year = fy
+    doc.insert(ignore_permissions=True)
+    if cint(submit):
+        doc.submit()
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def get_budget_variance(fiscal_year=None):
+    company = _company()
+    fy = fiscal_year or frappe.db.get_value("Fiscal Year", {"disabled": 0}, "name")
+    fyd = frappe.db.get_value("Fiscal Year", fy, ["year_start_date", "year_end_date"], as_dict=True) or {}
+    fyf = _budget_fy_field()
+    filters = {"company": company, "docstatus": 1}
+    if fyf:
+        filters[fyf] = fy
+    out = []
+    for b in frappe.get_all("Budget", filters=filters, fields=["name", "cost_center", "account", "budget_amount"]):
+        actual = 0
+        if fyd and b.account:
+            actual = frappe.db.sql("SELECT SUM(debit)-SUM(credit) FROM `tabGL Entry` WHERE account=%s AND company=%s AND posting_date BETWEEN %s AND %s AND is_cancelled=0",
+                                   (b.account, company, fyd.year_start_date, fyd.year_end_date))[0][0] or 0
+        out.append({"budget": b.name, "cost_center": b.cost_center, "account": b.account,
+                    "account_name": frappe.db.get_value("Account", b.account, "account_name") if b.account else "",
+                    "budget_amount": flt(b.budget_amount), "actual": flt(actual), "variance": flt(b.budget_amount) - flt(actual)})
+    return {"fiscal_year": fy, "rows": out}
 
 
 @frappe.whitelist()
