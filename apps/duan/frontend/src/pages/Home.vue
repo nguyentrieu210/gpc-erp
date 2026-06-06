@@ -64,7 +64,7 @@ const loggingOut = ref(false)
 async function logout() {
   loggingOut.value = true
   try {
-    await frappeRequest({ url: 'logout', method: 'POST' })
+    await fetch('/api/method/portal.api.portal_logout', { method: 'GET', credentials: 'include' })
   } catch (e) {
     // ignore
   }

@@ -99,6 +99,30 @@ function goPortal() {
   window.location.href = '/portal_app'
 }
 
+async function logout() {
+  loggingOut.value = true
+  try {
+    await fetch('/api/method/portal.api.portal_logout', { method: 'GET', credentials: 'include' })
+  } catch (e) {
+    // ignore
+  }
+  // Clear cookies manually in JS
+  const cookies = document.cookie.split(";");
+  for (let i = 0; i < cookies.length; i++) {
+    const cookie = cookies[i];
+    const eqPos = cookie.indexOf("=");
+    const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+    document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + window.location.hostname;
+    const parts = window.location.hostname.split('.');
+    if (parts.length >= 2) {
+      const domain = '.' + parts.slice(-2).join('.');
+      document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=" + domain;
+    }
+  }
+  window.location.href = '/portal_app/login'
+}
+
 const categories = [
   {
     title: '1. Danh mục & Cấu trúc (Master Data)',
