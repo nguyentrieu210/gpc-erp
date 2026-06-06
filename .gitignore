@@ -7,6 +7,7 @@ __pycache__/
 node_modules/
 .vite/
 dist/
+*.timestamp-*.mjs
 
 # Generated frontend bundles from local builds
 **/public/frontend/assets/
@@ -19,11 +20,14 @@ dist/
 Thumbs.db
 
 # Temporary patch/debug scripts created during development
-fix_*.py
-patch_*.py
-patch*.py
-*_fix*.py
-_fix*.py
+/patch_*.py
+/patch*.py
+/apps/fix_*.py
+/apps/patch_*.py
+/apps/patch*.py
+/apps/*/_fix*.py
+/apps/*/patch_*.py
+/apps/*/patch*.py
 
 # Accidental/generated folder
 apps;C/
