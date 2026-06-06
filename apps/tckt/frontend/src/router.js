@@ -8,6 +8,7 @@ const routes = [
   { path: '/chart-of-accounts', name: 'COA', component: () => import('./pages/ChartOfAccounts.vue') },
   { path: '/profit-loss', name: 'PL', component: () => import('./pages/ProfitLoss.vue') },
   { path: '/balance-sheet', name: 'BS', component: () => import('./pages/BalanceSheet.vue') },
+  { path: '/bank-reconciliation', name: 'BankRecon', component: () => import('./pages/BankReconciliation.vue') },
   { path: '/setup', name: 'TcktSetup', component: () => import('./pages/TcktSetup.vue') },
 ]
 const router = createRouter({ history: createWebHistory('/tckt_app'), routes })

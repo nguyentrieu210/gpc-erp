@@ -16,7 +16,9 @@
 <div class="border-t pt-2 mt-2 flex justify-between text-sm"><span>{{ po.total_taxes_and_charges>0 ? 'Đã gồm thuế GTGT' : '' }}</span><span class="font-bold text-base">{{ fmtVnd(po.grand_total) }}</span></div></div>
 <div class="flex gap-2"><Button v-if="po.docstatus===1&&po.per_received<100" variant="solid" theme="emerald" :loading="busy==='pr'" @click="makePR">Tạo phiếu nhập (PR)</Button>
 <Button v-if="po.docstatus===1&&po.per_billed<100" variant="solid" theme="violet" :loading="busy==='pi'" @click="makePI">Tạo hóa đơn (PI)</Button>
-<Button v-if="po.docstatus===0" variant="solid" theme="green" :loading="busy==='sub'" @click="submit">Chốt đơn</Button></div>
+<Button v-if="po.docstatus===0" variant="solid" theme="green" :loading="busy==='sub'" @click="submit">Chốt đơn</Button>
+<Button v-if="wf?.workflow_state==='Pending Approval'" variant="solid" theme="indigo" :loading="busy==='apv'" @click="approve">Duyệt</Button></div>
+<div v-if="wf?.workflow_state" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 inline-flex items-center gap-1"><FeatherIcon name="check-circle" class="h-3 w-3"/>Workflow: {{ wf.workflow_state }}</div>
 <!-- Linked docs -->
 <div v-if="links" class="rounded-xl border bg-white"><div class="px-4 py-3 border-b font-medium text-gray-700">Chứng từ liên quan</div>
 <div v-if="links.receipts?.length" class="px-4 py-2 border-t"><div class="text-xs font-medium text-gray-500 mb-1">Phiếu nhập mua</div>
@@ -27,12 +29,13 @@
 <div v-if="msg" class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{{ msg }}</div>
 </template></main></div></template>
 <script setup>
-import { ref } from 'vue'; import { useRoute } from 'vue-router'; import { Button,FeatherIcon,LoadingIndicator } from 'frappe-ui'; import { callApi } from '../composables/useFrappeApi'
-const route=useRoute(); const id=decodeURIComponent(route.params.id); const po=ref(null),links=ref(null),loading=ref(true),busy=ref(''),msg=ref('')
-async function load(){loading.value=true;try{po.value=await callApi('muahang.api.get_purchase_order',{name:id},'GET');links.value=await callApi('muahang.api.get_linked_docs',{doctype:'Purchase Order',name:id},'GET')}finally{loading.value=false}};load()
+import { ref, onMounted } from 'vue'; import { useRoute } from 'vue-router'; import { Button,FeatherIcon,LoadingIndicator } from 'frappe-ui'; import { callApi } from '../composables/useFrappeApi'
+const route=useRoute(); const id=decodeURIComponent(route.params.id); const po=ref(null),links=ref(null),wf=ref(null),loading=ref(true),busy=ref(''),msg=ref('')
+async function load(){loading.value=true;try{po.value=await callApi('muahang.api.get_purchase_order',{name:id},'GET');links.value=await callApi('muahang.api.get_linked_docs',{doctype:'Purchase Order',name:id},'GET');wf.value=await callApi('tckt.api.get_document_workflow_state',{doctype:'Purchase Order',name:id},'GET')}finally{loading.value=false}};load()
 async function submit(){busy.value='sub';try{await callApi('muahang.api.submit_purchase_order',{name:id});await load()}catch(e){alert('Lỗi: '+(e?.message||e))}finally{busy.value=''}}
 async function makePR(){busy.value='pr';try{const r=await callApi('muahang.api.make_purchase_receipt_from_po',{name:id,submit:1});msg.value='Đã tạo phiếu nhập: '+r.name}catch(e){alert('Lỗi: '+(e?.message||e))}finally{busy.value=''}}
 async function makePI(){busy.value='pi';try{const r=await callApi('muahang.api.make_purchase_invoice_from_po',{name:id,submit:1});msg.value='Đã tạo hóa đơn: '+r.name}catch(e){alert('Lỗi: '+(e?.message||e))}finally{busy.value=''}}
+async function approve(){busy.value='apv';try{await callApi('tckt.api.apply_workflow_action',{doctype:'Purchase Order',name:id,action:'Approve'});await load()}catch(e){alert('Lỗi duyệt: '+(e?.message||e))}finally{busy.value=''}}
 async function print(){const h=await callApi('muahang.api.print_purchase_order',{name:id},'GET');const w=window.open('','_blank');w.document.write(h+'<script>window.onload=()=>window.print()<\/script>');w.document.close()}
 function fmtVnd(v){return Number(v||0).toLocaleString('vi-VN')+' ₫'}
 </script>

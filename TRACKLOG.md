@@ -2,6 +2,35 @@
 
 Nhật ký tiến độ dự án. Mục mới nhất ở trên cùng. Múi giờ: +07.
 
+---
+
+## 2026-06-06 — **IMP-1/2/3: Item Price + Biến thể + Bank Recon + Workflow duyệt** ✅
+
+**Bối cảnh:** So với ERPNext gốc, GPC ERP thiếu: bảng giá, hàng biến thể, đối chiếu ngân hàng, workflow duyệt chứng từ.
+
+**IMP-1 — Item Price & Variant (`kho/api.py`):**
+- `get_price_lists(buying/selling)`, `get_item_prices/create_item_price/delete_item_price` — quản lý giá theo bảng giá.
+- `get_item_price_for_so/po(item_code, price_list)` — auto-fill giá khi tạo SO/PO.
+- `get_item_attributes()` + `get_item_variants(template)` + `create_item_variant()` — biến thể.
+- `kinhdoanh.api.get_selling_price()` — lấy giá bán tự động.
+- Bench: create ItemPrice rate=250k → get_selling_price=250k ✅
+
+**IMP-2 — Bank Reconciliation (`tckt/api.py`):**
+- `create_bank_account/get_bank_accounts` — TK ngân hàng (auto-tạo Bank doctype nếu thiếu).
+- `get_bank_clearance(bank_account)` — danh sách Payment Entry + Journal Entry chưa đối chiếu.
+- `submit_bank_clearance()` — tạo Bank Clearance + cập nhật clearance_date.
+- `get_bank_clearance_history()`.
+- Frontend: `BankReconciliation.vue` — chọn TK → chọn giao dịch → đối chiếu hàng loạt.
+
+**IMP-3 — Workflow & Approval (`tckt/api.py`):**
+- `setup_workflows()` — tạo 3 Workflow ERPNext: PO Approval / SO Approval / JE Approval (Draft→Submit→Pending Approval→Approve).
+- `get_workflows()`, `get_document_workflow_state()`, `apply_workflow_action()`.
+- `_ensure_wf_state/_ensure_wf_action` — idempotent tạo Workflow State + Workflow Action Master.
+- Frontend: `PODetail.vue` thêm nút "Duyệt" + badge workflow state.
+- Bench: PO Draft→Submit→Pending Approval→Approve ✅
+
+**Verify:** AST OK cả 3; build muahang+tckt+kho 0 lỗi; 8 endpoint 200; 2 trang mới 200; workflow chain confirmed.
+
 ## 2026-06-06 — **CRM + Tài chính + Kinh doanh + Kho v2 — HOÀN TẤT TOÀN BỘ** ✅
 
 **Bối cảnh:** Sau HR→Kho→Mua hàng, làm nốt các phân hệ còn lại. 4 module đồng thời.

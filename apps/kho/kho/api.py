@@ -1267,6 +1267,112 @@ def print_stock_entry(name):
 
 
 # ---------------------------------------------------------------------------
+# 10. ITEM PRICE & PRICE LIST (bảng giá)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_price_lists(buying=None, selling=None):
+    filters = {}
+    if cint(buying): filters["buying"] = 1
+    if cint(selling): filters["selling"] = 1
+    return frappe.get_all("Price List", filters=filters, fields=["name", "price_list_name", "currency", "buying", "selling", "enabled"], order_by="price_list_name asc")
+
+
+@frappe.whitelist()
+def get_item_prices(item_code, price_list=None):
+    filters = {"item_code": item_code}
+    if price_list: filters["price_list"] = price_list
+    rows = frappe.get_all("Item Price", filters=filters, fields=["name", "price_list", "item_code", "item_name", "uom", "price_list_rate", "currency", "valid_from", "valid_upto"], order_by="price_list asc")
+    return rows
+
+
+@frappe.whitelist()
+def create_item_price(item_code, price_list, price_list_rate, uom=None, valid_from=None, valid_upto=None):
+    if frappe.db.exists("Item Price", {"item_code": item_code, "price_list": price_list, "uom": uom or frappe.db.get_value("Item", item_code, "stock_uom")}):
+        doc = frappe.get_doc("Item Price", {"item_code": item_code, "price_list": price_list, "uom": uom or ""})
+    else:
+        doc = frappe.new_doc("Item Price")
+    doc.item_code = item_code
+    doc.price_list = price_list
+    doc.price_list_rate = flt(price_list_rate)
+    doc.currency = frappe.db.get_value("Price List", price_list, "currency") or "VND"
+    if uom: doc.uom = uom
+    if valid_from: doc.valid_from = getdate(valid_from)
+    if valid_upto: doc.valid_upto = getdate(valid_upto)
+    if not doc.name: doc.insert(ignore_permissions=True)
+    else: doc.save(ignore_permissions=True)
+    return doc.as_dict()
+
+
+@frappe.whitelist()
+def delete_item_price(name):
+    if frappe.db.exists("Item Price", name):
+        frappe.delete_doc("Item Price", name, ignore_permissions=True)
+    return {"deleted": name}
+
+
+@frappe.whitelist()
+def get_item_price_for_so(item_code, price_list="Standard Selling"):
+    """Tự động lấy giá bán khi tạo SO — dùng cho frontend auto-fill rate."""
+    rate = frappe.db.get_value("Item Price", {"item_code": item_code, "price_list": price_list}, "price_list_rate")
+    return {"item_code": item_code, "price_list": price_list, "rate": flt(rate) if rate else 0}
+
+
+@frappe.whitelist()
+def get_item_price_for_po(item_code, price_list="Standard Buying"):
+    """Tự động lấy giá mua khi tạo PO."""
+    rate = frappe.db.get_value("Item Price", {"item_code": item_code, "price_list": price_list}, "price_list_rate")
+    return {"item_code": item_code, "price_list": price_list, "rate": flt(rate) if rate else 0}
+
+
+# ---------------------------------------------------------------------------
+# 11. ITEM VARIANT (hàng biến thể: size, màu...)
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def get_item_attributes():
+    rows = frappe.get_all("Item Attribute", fields=["name", "attribute_name", "numeric_values"], order_by="attribute_name asc")
+    for r in rows:
+        r["values"] = frappe.get_all("Item Attribute Value", filters={"parent": r.name}, pluck="attribute_value", order_by="idx asc")
+    return rows
+
+
+@frappe.whitelist()
+def get_item_variants(item_code):
+    """Lấy danh sách biến thể của 1 item template."""
+    vattrs = frappe.get_all("Item Variant Attribute", filters={"variant_of": item_code}, fields=["parent", "attribute", "attribute_value"])
+    items = {}
+    for va in vattrs:
+        items.setdefault(va.parent, {})[va.attribute] = va.attribute_value
+    out = []
+    for variant_name, attrs in items.items():
+        it = frappe.db.get_value("Item", variant_name, ["item_name", "item_code", "stock_uom", "valuation_rate", "disabled"], as_dict=True) or {}
+        out.append({"name": variant_name, "item_name": it.get("item_name", variant_name), "item_code": it.get("item_code"),
+                    "valuation_rate": it.get("valuation_rate"), "stock_uom": it.get("stock_uom"), "disabled": it.get("disabled"),
+                    "attributes": attrs})
+    return out
+
+
+@frappe.whitelist()
+def create_item_variant(template_item_code, variant_name, item_code=None, attributes=None):
+    """Tạo 1 biến thể từ item template. attributes: [{attribute, attribute_value}]"""
+    if isinstance(attributes, str): attributes = _json.loads(attributes)
+    if not frappe.db.get_value("Item", template_item_code, "has_variants"):
+        frappe.db.set_value("Item", template_item_code, "has_variants", 1)
+    doc = frappe.new_doc("Item")
+    doc.variant_of = template_item_code
+    doc.item_code = item_code or (template_item_code + "-" + (variant_name or "").replace(" ", "-"))
+    doc.item_name = variant_name or doc.item_code
+    doc.item_group = frappe.db.get_value("Item", template_item_code, "item_group")
+    doc.stock_uom = frappe.db.get_value("Item", template_item_code, "stock_uom")
+    if attributes:
+        for a in attributes:
+            doc.append("attributes", {"attribute": a.get("attribute"), "attribute_value": a.get("attribute_value")})
+    doc.insert(ignore_permissions=True)
+    return doc.as_dict()
+
+
+# ---------------------------------------------------------------------------
 # Hạ tầng
 # ---------------------------------------------------------------------------
 

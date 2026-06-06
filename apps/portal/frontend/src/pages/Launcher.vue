@@ -62,9 +62,9 @@
     <!-- Bottom stats -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/hr_app')"><div class="text-base font-bold text-indigo-600">{{ db.hr?.employees||0 }}</div><div class="text-xs text-gray-500">Nhân viên</div><div class="text-[10px] text-gray-400 mt-0.5">{{ db.hr?.present||0 }} có mặt - {{ db.hr?.on_leave||0 }} nghỉ</div></div>
-      <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/crm_app')"><div class="text-base font-bold text-violet-600">{{ db.crm?.leads_open||0 }} / {{ db.crm?.opps_open||0 }}</div><div class="text-xs text-gray-500">Lead / Co hoi</div></div>
-      <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/kho_app/reorder')"><div class="text-base font-bold" :class="db.stock?.low?'text-red-600':'text-gray-400'">{{ db.stock?.low||0 }}</div><div class="text-xs text-gray-500">Sap het hang</div></div>
-      <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/tckt_app')"><div class="text-base font-bold text-green-600">{{ db.finance?.je_count||0 }}</div><div class="text-xs text-gray-500">Phieu ke toan</div><div class="text-[10px] text-gray-400 mt-0.5">{{ db.finance?.gl_count||0 }} but toan</div></div>
+      <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/crm_app')"><div class="text-base font-bold text-violet-600">{{ db.crm?.leads_open||0 }} / {{ db.crm?.opps_open||0 }}</div><div class="text-xs text-gray-500">Lead / Cơ hội</div></div>
+      <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/kho_app/reorder')"><div class="text-base font-bold" :class="db.stock?.low?'text-red-600':'text-gray-400'">{{ db.stock?.low||0 }}</div><div class="text-xs text-gray-500">Sắp hết hàng</div></div>
+      <div class="rounded-xl border bg-white p-3 text-center cursor-pointer hover:shadow-md" @click="goApp('/tckt_app')"><div class="text-base font-bold text-green-600">{{ db.finance?.je_count||0 }}</div><div class="text-xs text-gray-500">Phiếu kế toán</div><div class="text-[10px] text-gray-400 mt-0.5">{{ db.finance?.gl_count||0 }} bút toán</div></div>
     </div>
   </main>
 </div>
@@ -78,7 +78,7 @@ const loggingOut=ref(false)
 const {data:modules}=useFrappeApi('portal.api.get_my_modules',{initialData:[],onError:()=>{}})
 const {data:user}=useFrappeApi('portal.api.get_current_user')
 const db=ref({}),q=ref(''),results=ref([])
-async function loadDash(){try{const res=await frappeRequest({url:'portal.api.get_unified_dashboard',method:'GET'});db.value=res;(modules.value||[]).forEach(md=>{if(md.route_key==='hr')md._stat=(db.value.hr?.employees||0)+' NV';else if(md.route_key==='kho')md._stat=fmtShort(db.value.stock?.value);else if(md.route_key==='muahang')md._stat=fmtShort(db.value.purchasing?.payables)+' no';else if(md.route_key==='kinhdoanh')md._stat=fmtShort(db.value.sales?.revenue_mtd)+' DT';else if(md.route_key==='tckt')md._stat=(db.value.finance?.je_count||0)+' phieu';else if(md.route_key==='crm_ui')md._stat=(db.value.crm?.leads_open||0)+' lead'})}catch{}}
+async function loadDash(){try{const res=await frappeRequest({url:'portal.api.get_unified_dashboard',method:'GET'});db.value=res;(modules.value||[]).forEach(md=>{if(md.route_key==='hr')md._stat=(db.value.hr?.employees||0)+' NV';else if(md.route_key==='kho')md._stat=fmtShort(db.value.stock?.value);else if(md.route_key==='muahang')md._stat=fmtShort(db.value.purchasing?.payables)+' nợ';else if(md.route_key==='kinhdoanh')md._stat=fmtShort(db.value.sales?.revenue_mtd)+' DT';else if(md.route_key==='tckt')md._stat=(db.value.finance?.je_count||0)+' phiếu';else if(md.route_key==='crm_ui')md._stat=(db.value.crm?.leads_open||0)+' lead'})}catch{}}
 onMounted(loadDash)
 let st
 function doSearch(){clearTimeout(st);if(q.value.length<2){results.value=[];return};st=setTimeout(async()=>{try{const r=await frappeRequest({url:'portal.api.global_search',method:'GET',params:{q:q.value}});results.value=r?.results||[]}catch{}},250)}
@@ -87,5 +87,5 @@ function goDoc(r){const dt=r._doctype;let url='';if(dt==='Purchase Order')url='/
 function goApp(p){window.location.href=p}
 function dtTag(dt){if(dt==='Sales Order')return'SO';if(dt==='Purchase Order')return'PO';if(dt==='Stock Entry')return'Kho';if(dt==='Journal Entry')return'KT';if(dt==='Sales Invoice')return'SI';if(dt==='Purchase Invoice')return'PI';if(dt==='Lead')return'Lead';return dt.slice(0,4)}
 async function logout(){loggingOut.value=true;try{await frappeRequest({url:'logout',method:'POST'})}catch{};document.cookie.split(";").forEach(c=>{const n=c.indexOf("=")>-1?c.substr(0,c.indexOf("=")).trim():c.trim();document.cookie=n+"=;expires=Thu,01 Jan 1970 00:00:00 GMT;path=/"});window.location.href='/portal_app/login'}
-function fmtShort(v){v=Number(v||0);if(v>=1e9)return (v/1e9).toFixed(1)+' ty';if(v>=1e6)return (v/1e6).toFixed(1)+' tr';return v.toLocaleString('vi-VN')}
+function fmtShort(v){v=Number(v||0);if(v>=1e9)return (v/1e9).toFixed(1)+' tỷ';if(v>=1e6)return (v/1e6).toFixed(1)+' tr';return v.toLocaleString('vi-VN')}
 </script>

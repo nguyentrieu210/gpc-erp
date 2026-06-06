@@ -50,6 +50,23 @@ def _log(doctype, name, action, detail=""):
         pass
 
 
+def _check_perm(doctype, ptype="read"):
+    if not frappe.has_permission(doctype, ptype):
+        frappe.throw(
+            f"Ban khong co quyen thuc hien thao tac nay ({ptype} tren {doctype})",
+            frappe.PermissionError,
+        )
+
+
+def _check_any_role(*roles):
+    user_roles = set(frappe.get_roles(frappe.session.user))
+    if not user_roles.intersection(roles):
+        frappe.throw(
+            f"Ban can mot trong cac vai tro: {', '.join(roles)}",
+            frappe.PermissionError,
+        )
+
+
 def _vn_date(d):
     if not d:
         return ""
@@ -137,6 +154,7 @@ def _ensure_supplier_groups():
 @frappe.whitelist()
 def setup_muahang():
     """Cài đặt 1 lần (idempotent): tài khoản công nợ/chi phí + nhóm NCC VN."""
+    _check_any_role("System Manager", "Purchase Manager", "Accounts Manager")
     accounts = _ensure_company_buying_accounts()
     groups = _ensure_supplier_groups()
     frappe.db.commit()
@@ -232,6 +250,7 @@ WRITABLE_SUPPLIER_FIELDS = {"supplier_name", "supplier_group", "supplier_type", 
 @frappe.whitelist()
 def create_supplier(supplier_name, supplier_group=None, supplier_type="Company",
                     country="Vietnam", tax_id=None, mobile=None, email=None, supplier_details=None):
+    _check_perm("Supplier", "create")
     sg = supplier_group or _default_supplier_group()
     if not frappe.db.exists("Supplier Group", sg):
         sg = _default_supplier_group()
@@ -261,6 +280,7 @@ def create_supplier(supplier_name, supplier_group=None, supplier_type="Company",
 
 @frappe.whitelist()
 def update_supplier(name, **kwargs):
+    _check_perm("Supplier", "write")
     doc = frappe.get_doc("Supplier", name)
     changed = []
     for k, v in kwargs.items():
@@ -275,6 +295,7 @@ def update_supplier(name, **kwargs):
 
 @frappe.whitelist()
 def toggle_supplier(name, disabled=1):
+    _check_perm("Supplier", "write")
     frappe.db.set_value("Supplier", name, "disabled", cint(disabled))
     return {"name": name, "disabled": cint(disabled)}
 
@@ -289,6 +310,7 @@ def get_supplier_groups():
 
 @frappe.whitelist()
 def create_supplier_group(supplier_group_name, parent_supplier_group="All Supplier Groups"):
+    _check_perm("Supplier Group", "create")
     if frappe.db.exists("Supplier Group", supplier_group_name):
         return {"name": supplier_group_name, "existed": True}
     doc = frappe.get_doc({
