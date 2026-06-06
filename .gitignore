@@ -12,6 +12,9 @@ dist/
 # Generated frontend bundles — KEEP for clone-and-run
 # **/public/frontend/assets/
 
+# Shared UI synced into each app (nguồn gốc ở /shared/ui; copy lúc build qua shared/sync.sh)
+/apps/*/frontend/src/_shared/
+
 # Local/editor/environment files
 .env
 .env.*

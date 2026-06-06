@@ -1,0 +1,69 @@
+/* GPC SHARED — styles (canonical). Sửa tại shared/ui rồi chạy shared/sync.sh.
+ * App có thể thay index.css bằng: @import '@shared/styles/index.css';
+ */
+@import 'frappe-ui/style.css';
+
+/* ── Animations ─────────────────────────────────── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fadeIn { animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.animate-slideUp { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.animate-shimmer { background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+@keyframes pulseRing { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); } 70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); } }
+.animate-pulseRing { animation: pulseRing 2s infinite; }
+@keyframes floatUp { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-3px); } }
+.animate-float { animation: floatUp 3s ease-in-out infinite; }
+
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+
+.card-hover { transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
+.text-gradient-indigo { background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.15); }
+
+/* ── Form input helper (index.css không có @tailwind nên dùng plain CSS) ── */
+.inp { width: 100%; border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; background: #fff; }
+.inp:focus { border-color: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15); }
+.inp:disabled { background: #f9fafb; color: #9ca3af; }
+
+/* ── Button themes ─────────────────────────────── */
+.btn-primary { background-color: #4f46e5 !important; color: #fff !important; border: 1px solid #4338ca !important; }
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active { background-color: #4338ca !important; color: #fff !important; border-color: #3730a3 !important; }
+.btn-success { background-color: #10b981 !important; color: #fff !important; border: 1px solid #059669 !important; }
+.btn-success:hover, .btn-success:focus, .btn-success:active { background-color: #059669 !important; color: #fff !important; border-color: #047857 !important; }
+.btn-danger { background-color: #ef4444 !important; color: #fff !important; border: 1px solid #dc2626 !important; }
+.btn-danger:hover, .btn-danger:focus, .btn-danger:active { background-color: #dc2626 !important; color: #fff !important; border-color: #b91c1c !important; }
+.btn-warning { background-color: #f59e0b !important; color: #fff !important; border: 1px solid #d97706 !important; }
+.btn-warning:hover, .btn-warning:focus, .btn-warning:active { background-color: #d97706 !important; color: #fff !important; border-color: #b45309 !important; }
+.btn-secondary { background-color: #f3f4f6 !important; color: #374151 !important; border: 1px solid #d1d5db !important; }
+.btn-secondary:hover, .btn-secondary:focus, .btn-secondary:active { background-color: #e5e7eb !important; color: #374151 !important; border-color: #9ca3af !important; }
+
+button, .btn { border-radius: 0.75rem !important; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important; }
+button svg, .btn svg, .app-card svg, .app-card-interactive svg,
+.rounded-lg.border.bg-white svg, .rounded-xl.border.bg-white svg, .rounded-2xl.border.bg-white svg { stroke: currentColor !important; color: inherit !important; }
+
+/* ── Card system ───────────────────────────────── */
+.rounded-lg.border.bg-white, .rounded-xl.border.bg-white, .rounded-2xl.border.bg-white, .app-card { background-color: #fff !important; border: 1px solid #e5e7eb !important; border-radius: 0.75rem !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important; }
+.cursor-pointer.border.bg-white, a.border.bg-white, .app-card-interactive { background-color: #fff !important; border: 1px solid #e5e7eb !important; border-radius: 0.75rem !important; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important; cursor: pointer; }
+.cursor-pointer.border.bg-white:hover, a.border.bg-white:hover, .app-card-interactive:hover { border-color: #c7d2fe !important; box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.08), 0 4px 6px -4px rgba(99, 102, 241, 0.08) !important; transform: translateY(-1.5px) !important; }
+.app-table-row-card { background-color: #fff !important; border: 1px solid #e5e7eb !important; border-radius: 0.75rem !important; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03) !important; transition: all 0.2s ease !important; cursor: pointer; }
+.app-table-row-card:hover { border-color: #c7d2fe !important; box-shadow: 0 6px 12px -2px rgba(99, 102, 241, 0.06) !important; transform: translateX(2px) !important; }
+
+/* ── Tables & lists ────────────────────────────── */
+table { width: 100% !important; border-collapse: collapse !important; }
+th { background-color: #f9fafb !important; color: #4b5563 !important; font-weight: 600 !important; font-size: 0.75rem !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; border-bottom: 1px solid #e5e7eb !important; }
+td { border-bottom: 1px solid #f3f4f6 !important; transition: background-color 0.15s ease !important; }
+tr:hover td { background-color: #f9fafb !important; }
+.divide-y > * { transition: background-color 0.15s ease !important; }
+.divide-y > *:hover { background-color: #f9fafb !important; }
+
+/* ── Premium loading indicator sizing fix ── */
+svg.animate-spin.max-w-xs:not([class^='w-']):not([class*=' w-']) { width: 1.75rem !important; }
+svg.animate-spin.max-w-xs:not([class^='h-']):not([class*=' h-']) { height: 1.75rem !important; }
+svg.animate-spin.max-w-xs:not([class^='text-']):not([class*=' text-']) { color: #6366f1 !important; }

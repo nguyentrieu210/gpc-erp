@@ -26,6 +26,10 @@ RUN for a in portal hr crm_ui tckt kho kinhdoanh quantri muahang duan; do \
               /home/frappe/frappe-bench/sites/assets/$a; \
     done
 
+# ── Bộ UI dùng chung: copy + sync vào src/_shared của từng app trước khi build ─
+COPY --chown=frappe:frappe shared shared
+RUN bash shared/sync.sh
+
 # ── Build Vue frontend cho từng app có frontend/ ────────────────────────────
 # node/yarn đã có trong image frappe-vn:v16 qua nvm
 RUN . /home/frappe/.nvm/nvm.sh && \

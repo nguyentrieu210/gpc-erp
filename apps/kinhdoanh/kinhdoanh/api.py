@@ -472,11 +472,38 @@ def get_sales_dashboard():
     c = _company(); fd = getdate(today()).replace(day=1)
     receivables = sum(v for v in _customer_outstanding_map().values())
     month_so = sum(flt(so.grand_total) for so in frappe.get_all("Sales Order", filters={"docstatus": 1, "transaction_date": [">=", fd]}, fields=["grand_total"]))
+
+    # Doanh thu 6 tháng gần nhất (theo Sales Invoice đã ghi sổ)
+    import collections
+    rev = collections.OrderedDict()
+    base = getdate(today()).replace(day=1)
+    for i in range(5, -1, -1):
+        m = (base.month - i - 1) % 12 + 1
+        y = base.year + ((base.month - i - 1) // 12)
+        rev[f"{m:02d}/{y}"] = 0.0
+    for si in frappe.get_all("Sales Invoice", filters={"docstatus": 1, "posting_date": [">=", add_days(base, -185)]}, fields=["posting_date", "base_grand_total"]):
+        k = f"{getdate(si.posting_date).month:02d}/{getdate(si.posting_date).year}"
+        if k in rev: rev[k] += flt(si.base_grand_total)
+    revenue_series = [{"month": k, "value": v} for k, v in rev.items()]
+
+    # Top mặt hàng bán (90 ngày) theo doanh thu
+    top = collections.defaultdict(float)
+    for it in frappe.get_all("Sales Invoice Item",
+            filters={"docstatus": 1, "creation": [">=", add_days(getdate(today()), -90)]},
+            fields=["item_code", "item_name", "base_amount"], limit=2000):
+        top[(it.item_code, it.item_name)] += flt(it.base_amount)
+    top_items = [{"item_code": k[0], "item_name": k[1], "amount": v} for k, v in sorted(top.items(), key=lambda x: -x[1])[:5]]
+
+    recent_so = frappe.get_all("Sales Order", filters={"docstatus": ["!=", 2]}, fields=["name", "customer_name", "grand_total", "status", "transaction_date"], order_by="creation desc", limit=6)
+    for r in recent_so: r["status_vi"] = SO_STATUS_VI.get(r.status, r.status)
+
     return {"so_draft": frappe.db.count("Sales Order", {"docstatus": 0}), "so_this_month": month_so,
             "to_deliver": frappe.db.count("Sales Order", {"docstatus": 1, "per_delivered": ["<", 100]}),
             "to_bill": frappe.db.count("Sales Order", {"docstatus": 1, "per_billed": ["<", 100]}),
             "total_receivable": receivables, "si_unpaid": frappe.db.count("Sales Invoice", {"docstatus": 1, "outstanding_amount": [">", 0]}),
-            "customer_count": frappe.db.count("Customer", {"disabled": 0})}
+            "customer_count": frappe.db.count("Customer", {"disabled": 0}),
+            "quotation_open": frappe.db.count("Quotation", {"docstatus": 1, "status": ["in", ["Submitted", "Open"]]}),
+            "revenue_series": revenue_series, "top_items": top_items, "recent_so": recent_so}
 
 
 # ---------------------------------------------------------------------------
@@ -509,6 +536,35 @@ def print_sales_order(name): return _print_doc("Sales Order", name, "ĐƠN ĐẶ
 
 
 @frappe.whitelist()
+def print_delivery_note(name): return _print_doc("Delivery Note", name, "PHIẾU XUẤT GIAO HÀNG", "posting_date")
+
+
+@frappe.whitelist()
+def print_sales_invoice(name): return _print_doc("Sales Invoice", name, "HÓA ĐƠN BÁN HÀNG", "posting_date")
+
+
+@frappe.whitelist()
+def cancel_delivery_note(name): doc = frappe.get_doc("Delivery Note", name); doc.cancel(); return {"name": doc.name, "docstatus": doc.docstatus}
+
+
+@frappe.whitelist()
+def cancel_sales_invoice(name): doc = frappe.get_doc("Sales Invoice", name); doc.cancel(); return {"name": doc.name, "docstatus": doc.docstatus}
+
+
+@frappe.whitelist()
+def get_doc_activity(doctype, name):
+    """Dòng thời gian hoạt động (Comment/Version) cho ActivityTimeline — dùng chung mọi chứng từ."""
+    rows = frappe.get_all("Comment",
+        filters={"reference_doctype": doctype, "reference_name": name,
+                 "comment_type": ["in", ["Comment", "Info", "Workflow", "Created", "Submitted", "Cancelled", "Updated"]]},
+        fields=["content", "comment_by", "owner", "creation", "comment_type"], order_by="creation desc", limit=60)
+    out = []
+    for c in rows:
+        out.append({"time": str(c.creation), "user": c.comment_by or c.owner,
+                    "action": c.comment_type, "detail": frappe.utils.strip_html(c.content or "")})
+    return out
+
+
 # ---------------------------------------------------------------------------
 # DOCUMENT LINKING
 # ---------------------------------------------------------------------------

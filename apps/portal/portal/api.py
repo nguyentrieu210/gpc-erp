@@ -8,14 +8,14 @@ from frappe.utils import flt, cint, getdate, today, nowdate, add_to_date
 # ---------------------------------------------------------------------------
 
 DEFAULT_MODULES = [
-    {"module_name": "Quan tri", "route_key": "quantri", "subdomain_url": "/quantri_app", "icon": "settings", "color": "#4b5563", "description": "QL nguoi dung & phan quyen", "required_role": "System Manager", "sort_order": 5},
-    {"module_name": "Nhan su", "route_key": "hr", "subdomain_url": "/hr_app", "icon": "users", "color": "#6366f1", "description": "QL nhan su, luong, tuyen dung", "required_role": "HR User", "sort_order": 10},
-    {"module_name": "CRM", "route_key": "crm_ui", "subdomain_url": "/crm_app", "icon": "user-plus", "color": "#8b5cf6", "description": "QL khach hang, lead, co hoi", "required_role": "Sales User", "sort_order": 20},
-    {"module_name": "Tai chinh", "route_key": "tckt", "subdomain_url": "/tckt_app", "icon": "dollar-sign", "color": "#10b981", "description": "So cai, bao cao TC, thue", "required_role": "Accounts User", "sort_order": 30},
-    {"module_name": "Mua hang", "route_key": "muahang", "subdomain_url": "/muahang_app", "icon": "shopping-cart", "color": "#0ea5e9", "description": "Don mua, nhap hang, cong no", "required_role": "Purchase User", "sort_order": 35},
-    {"module_name": "Kho", "route_key": "kho", "subdomain_url": "/kho_app", "icon": "package", "color": "#f97316", "description": "QL hang hoa, nhap xuat ton", "required_role": "Stock User", "sort_order": 40},
-    {"module_name": "Kinh doanh", "route_key": "kinhdoanh", "subdomain_url": "/kinhdoanh_app", "icon": "trending-up", "color": "#e11d48", "description": "Bao gia, don ban, xuat giao", "required_role": "Sales User", "sort_order": 50},
-    {"module_name": "Du an", "route_key": "duan", "subdomain_url": "/duan_app", "icon": "briefcase", "color": "#f59e0b", "description": "QL du an & cong viec", "required_role": "Projects User", "sort_order": 60},
+    {"module_name": "Quản trị", "route_key": "quantri", "subdomain_url": "/quantri_app", "icon": "settings", "color": "#4b5563", "description": "Quản lý người dùng & phân quyền", "required_role": "System Manager", "sort_order": 5},
+    {"module_name": "Nhân sự", "route_key": "hr", "subdomain_url": "/hr_app", "icon": "users", "color": "#6366f1", "description": "Quản lý nhân sự, lương, tuyển dụng", "required_role": "HR User", "sort_order": 10},
+    {"module_name": "CRM", "route_key": "crm_ui", "subdomain_url": "/crm_app", "icon": "user-plus", "color": "#8b5cf6", "description": "Quản lý khách hàng, lead, cơ hội", "required_role": "Sales User", "sort_order": 20},
+    {"module_name": "Tài chính kế toán", "route_key": "tckt", "subdomain_url": "/tckt_app", "icon": "dollar-sign", "color": "#10b981", "description": "Sổ cái, báo cáo tài chính, thuế", "required_role": "Accounts User", "sort_order": 30},
+    {"module_name": "Mua hàng", "route_key": "muahang", "subdomain_url": "/muahang_app", "icon": "shopping-cart", "color": "#0ea5e9", "description": "Đơn mua, nhập hàng, công nợ NCC", "required_role": "Purchase User", "sort_order": 35},
+    {"module_name": "Kho", "route_key": "kho", "subdomain_url": "/kho_app", "icon": "package", "color": "#f97316", "description": "Quản lý hàng hóa, nhập xuất tồn", "required_role": "Stock User", "sort_order": 40},
+    {"module_name": "Kinh doanh", "route_key": "kinhdoanh", "subdomain_url": "/kinhdoanh_app", "icon": "trending-up", "color": "#e11d48", "description": "Báo giá, đơn bán, xuất giao, hóa đơn", "required_role": "Sales User", "sort_order": 50},
+    {"module_name": "Dự án", "route_key": "duan", "subdomain_url": "/duan_app", "icon": "briefcase", "color": "#f59e0b", "description": "Quản lý dự án & công việc", "required_role": "Projects User", "sort_order": 60},
 ]
 
 
